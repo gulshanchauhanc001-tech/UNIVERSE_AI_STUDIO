@@ -102,6 +102,7 @@ def redirect_url():
 def set_logged_in_user(user, method):
     st.session_state.logged_in = True
     st.session_state.username = getattr(user, "email", "") or ""
+    st.session_state.user_id = str(user.id)
 
     metadata = getattr(user, "user_metadata", None) or {}
 
