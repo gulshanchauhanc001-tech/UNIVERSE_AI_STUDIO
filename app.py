@@ -404,6 +404,16 @@ def handle_google_callback():
 
 
 # -----------------------------------------
+# LOGIN CHECK
+# -----------------------------------------
+
+if not st.session_state.logged_in:
+    handle_google_callback()
+
+if not st.session_state.logged_in:
+    auth_screen()
+    st.stop()
+# -----------------------------------------
 # SIDEBAR NAVIGATION
 # -----------------------------------------
 
