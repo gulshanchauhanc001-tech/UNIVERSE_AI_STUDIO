@@ -574,14 +574,14 @@ with st.sidebar:
     st.caption(st.session_state.username)
     st.caption(st.session_state.auth_method)
 
-    if st.button("Logout", use_container_width=True):
+       if st.button("Logout", use_container_width=True):
 
         try:
             get_supabase().auth.sign_out()
         except Exception:
             pass
 
-               for key in [
+        for key in [
             "logged_in",
             "username",
             "profile_name",
