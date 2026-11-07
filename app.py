@@ -2,7 +2,7 @@
 import streamlit as st
 import json
 from datetime import datetime
-from from supabase import create_client
+from supabase import create_client
 from supabase.client import ClientOptions
 
 # -----------------------------------------
