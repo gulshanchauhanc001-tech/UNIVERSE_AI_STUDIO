@@ -70,14 +70,27 @@ class StreamlitSQLiteStorage(SyncSupportedStorage):
 
 
 # -----------------------------------------
-# BROWSER SESSION ID
+# PERSISTENT BROWSER SESSION ID
 # -----------------------------------------
 
-if "auth_sid" not in st.query_params:
-    st.query_params["auth_sid"] = py_secrets.token_urlsafe(24)
-    st.rerun()
+cookie_manager = stx.CookieManager(key="universe_auth_cookies")
 
-AUTH_NAMESPACE = st.query_params["auth_sid"]
+AUTH_COOKIE_NAME = "universe_auth_sid"
+
+AUTH_NAMESPACE = cookie_manager.get(AUTH_COOKIE_NAME)
+
+if not AUTH_NAMESPACE:
+
+    AUTH_NAMESPACE = py_secrets.token_urlsafe(32)
+
+    cookie_manager.set(
+        AUTH_COOKIE_NAME,
+        AUTH_NAMESPACE,
+        expires_at=datetime.now() + timedelta(days=30)
+    )
+
+    st.info("Login session prepare ho raha hai. Ek pal wait karo.")
+    st.stop()
 
 
 # -----------------------------------------
