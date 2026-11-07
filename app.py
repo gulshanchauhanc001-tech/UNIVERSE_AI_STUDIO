@@ -478,16 +478,64 @@ def handle_google_callback():
             st.error(f"Google login error: {e}")
 
 
+
+# -----------------------------------------
+# GOOGLE CALLBACK
+# -----------------------------------------
+
+def handle_google_callback():
+
+    code = st.query_params.get("code")
+
+    if code:
+        try:
+            result = get_supabase().auth.exchange_code_for_session({
+                "auth_code": code
+            })
+
+            set_logged_in_user(result.user, "Google")
+
+            st.query_params.clear()
+            st.query_params["auth_sid"] = AUTH_NAMESPACE
+
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Google login error: {e}")
+
+
+# -----------------------------------------
+# RESTORE LOGIN SESSION
+# -----------------------------------------
+
+if not st.session_state.get("logged_in", False):
+
+    try:
+        supabase = get_supabase()
+        session = supabase.auth.get_session()
+
+        if session and session.user:
+            set_logged_in_user(
+                session.user,
+                "Restored Session"
+            )
+
+    except Exception as e:
+        st.warning(f"Session restore error: {e}")
+
+
 # -----------------------------------------
 # LOGIN CHECK
 # -----------------------------------------
 
-if not st.session_state.logged_in:
+if not st.session_state.get("logged_in", False):
     handle_google_callback()
 
-if not st.session_state.logged_in:
+if not st.session_state.get("logged_in", False):
     auth_screen()
     st.stop()
+
+
 # -----------------------------------------
 # SIDEBAR NAVIGATION
 # -----------------------------------------
@@ -533,18 +581,20 @@ with st.sidebar:
         except Exception:
             pass
 
-        for key in [
+               for key in [
             "logged_in",
             "username",
             "profile_name",
-            "auth_method"
+            "auth_method",
+            "user_id"
         ]:
             st.session_state[key] = (
-                False if key == "logged_in" else ""
+                False if key == "logged_in"
+                else None if key == "user_id"
+                else ""
             )
 
         st.rerun()
-
 
 
 # -----------------------------------------
