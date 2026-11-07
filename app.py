@@ -865,6 +865,26 @@ elif page == "🧑 Character Library":
     </div>
     """, unsafe_allow_html=True)
 
+    current_project = (
+        st.session_state.get("project_name") or "My First Film"
+    )
+
+    # Load characters from permanent AI memory
+    if st.session_state.get("characters_loaded_for") != current_project:
+
+        memories = load_ai_memories(current_project)
+
+        characters = []
+
+        for memory in memories:
+            if memory.get("memory_type") == "character":
+                character = dict(memory.get("content") or {})
+                character["_memory_id"] = memory.get("id")
+                characters.append(character)
+
+        st.session_state.characters = characters
+        st.session_state.characters_loaded_for = current_project
+
     with st.form("character_form"):
 
         name = st.text_input("Character Name")
@@ -908,16 +928,27 @@ elif page == "🧑 Character Library":
 
         else:
 
-            st.session_state.characters.append({
-                "name": name,
+            character_data = {
+                "name": name.strip(),
                 "role": role,
                 "appearance": appearance,
                 "personality": personality,
                 "reference": reference
-            })
+            }
 
-            st.success("Character saved.")
-            st.rerun()
+            success, message = save_ai_memory(
+                current_project,
+                "character",
+                name.strip(),
+                character_data
+            )
+
+            if success:
+                st.session_state.characters_loaded_for = None
+                st.success("Character permanently saved!")
+                st.rerun()
+            else:
+                st.error(f"Save error: {message}")
 
     st.divider()
     st.markdown("### Your Characters")
@@ -927,17 +958,37 @@ elif page == "🧑 Character Library":
 
     for i, character in enumerate(st.session_state.characters):
 
-        with st.expander(character["name"]):
+        with st.expander(character.get("name", "Character")):
 
-            st.write("**Role:**", character["role"])
-            st.write("**Appearance:**", character["appearance"])
-            st.write("**Personality:**", character["personality"])
-            st.write("**Consistency:**", character["reference"])
+            st.write("**Role:**", character.get("role", ""))
+            st.write("**Appearance:**", character.get("appearance", ""))
+            st.write("**Personality:**", character.get("personality", ""))
+            st.write("**Consistency:**", character.get("reference", ""))
 
-            if st.button("Delete Character", key=f"delete_character_{i}"):
+            if st.button(
+                "Delete Character",
+                key=f"delete_character_{i}"
+            ):
 
-                st.session_state.characters.pop(i)
-                st.rerun()
+                memory_id = character.get("_memory_id")
+
+                if memory_id:
+                    try:
+                        get_supabase().table("ai_memory").delete().eq(
+                            "id", memory_id
+                        ).eq(
+                            "user_id", st.session_state.user_id
+                        ).execute()
+
+                        st.session_state.characters_loaded_for = None
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Delete error: {e}")
+
+                else:
+                    st.session_state.characters.pop(i)
+                    st.rerun()
 
 
 # -----------------------------------------
