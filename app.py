@@ -523,18 +523,19 @@ with st.sidebar:
         st.rerun()
 
 
+
 # -----------------------------------------
-# OVERVIEW
+# OVERVIEW - AI BRAIN DASHBOARD
 # -----------------------------------------
 
 if page == "🏠 Overview":
 
     st.markdown("""
     <div class="hero">
-        <h1>Imagine. Create. Direct. 🎬</h1>
-        <p>Your personal AI filmmaking workspace.</p>
+        <h1>UNIVERSE AI BRAIN 🧠</h1>
+        <p>Your intelligent filmmaking memory workspace.</p>
         <p class="small-muted">
-            Create stories, characters and cinematic worlds.
+            Your saved creative world, all in one place.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -546,14 +547,108 @@ if page == "🏠 Overview":
 
     st.markdown(f"### Welcome {welcome} 👋")
 
-    a, b, c, d = st.columns(4)
+    brain_project = (
+        st.session_state.get("project_name")
+        or "My First Film"
+    )
 
-    a.metric("Scenes", len(st.session_state.scenes))
-    b.metric("Characters", len(st.session_state.characters))
-    c.metric("Locations", len(st.session_state.locations))
-    d.metric("Projects", len(st.session_state.projects))
+    st.markdown(f"### 📁 Current Project: {brain_project}")
 
-    st.markdown("## Your Creative Workspace")
+    # Load permanent memories from Supabase
+    brain_memories = load_ai_memories(brain_project)
+
+    memory_groups = {
+        "story": [],
+        "character": [],
+        "location": [],
+        "scene": [],
+        "dialogue": [],
+        "other": []
+    }
+
+    for memory in brain_memories:
+        memory_type = memory.get("memory_type", "other")
+
+        if memory_type in memory_groups:
+            memory_groups[memory_type].append(memory)
+        else:
+            memory_groups["other"].append(memory)
+
+    # Memory statistics
+    a, b, c, d, e = st.columns(5)
+
+    a.metric("Stories", len(memory_groups["story"]))
+    b.metric("Characters", len(memory_groups["character"]))
+    c.metric("Locations", len(memory_groups["location"]))
+    d.metric("Scenes", len(memory_groups["scene"]))
+    e.metric("Dialogues", len(memory_groups["dialogue"]))
+
+    st.markdown("---")
+    st.markdown("## 🧠 AI Brain - Saved Memories")
+
+    if not brain_memories:
+
+        st.info(
+            "Abhi is project mein koi permanent memory save nahi hai. "
+            "Film Studio mein scenes aur dialogues save karo."
+        )
+
+    else:
+
+        memory_tabs = st.tabs([
+            "📖 Stories",
+            "🧑 Characters",
+            "🌍 Locations",
+            "🎬 Scenes",
+            "🎙️ Dialogues",
+            "📦 Other"
+        ])
+
+        tab_types = [
+            "story",
+            "character",
+            "location",
+            "scene",
+            "dialogue",
+            "other"
+        ]
+
+        for memory_tab, memory_type in zip(memory_tabs, tab_types):
+
+            with memory_tab:
+
+                items = memory_groups[memory_type]
+
+                if not items:
+                    st.info("Is category mein abhi koi memory nahi hai.")
+
+                for i, memory in enumerate(items):
+
+                    content = memory.get("content") or {}
+
+                    with st.expander(
+                        memory.get("title") or f"{memory_type.title()} {i+1}"
+                    ):
+
+                        if isinstance(content, dict):
+
+                            for key, value in content.items():
+
+                                if key != "_memory_id":
+                                    st.write(
+                                        f"**{key.replace('_', ' ').title()}:**",
+                                        value
+                                    )
+
+                        else:
+                            st.write(content)
+
+                        st.caption(
+                            f"Saved: {memory.get('created_at', 'Date unavailable')}"
+                        )
+
+    st.markdown("---")
+    st.markdown("## 🎬 Your Creative Workspace")
 
     cols = st.columns(3)
 
@@ -579,10 +674,10 @@ if page == "🏠 Overview":
                 unsafe_allow_html=True
             )
 
-
 # -----------------------------------------
 # FILM STUDIO
 # -----------------------------------------
+
 
 elif page == "🎥 Film Studio":
 
