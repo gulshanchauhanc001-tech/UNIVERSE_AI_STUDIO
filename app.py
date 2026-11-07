@@ -3,6 +3,7 @@ import streamlit as st
 import json
 from datetime import datetime
 from supabase import create_client
+from supabase.client import ClientOptions
 
 # -----------------------------------------
 # APP CONFIG
