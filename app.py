@@ -689,17 +689,28 @@ elif page == "🎥 Film Studio":
 
             else:
 
-                st.session_state.scenes.append({
-                    "name": scene_name or f"Scene {len(st.session_state.scenes)+1}",
+                scene_data = {
+                    "name": scene_name.strip() or f"Scene {len(st.session_state.scenes)+1}",
                     "prompt": prompt,
                     "style": style,
                     "camera": camera,
                     "duration": duration,
                     "created": datetime.now().strftime("%Y-%m-%d %H:%M")
-                })
+                }
 
-                st.success("Scene storyboard mein add ho gaya.")
-                st.rerun()
+                success, message = save_ai_memory(
+                    current_project,
+                    "scene",
+                    scene_data["name"],
+                    scene_data
+                )
+
+                if success:
+                    st.session_state.scenes_loaded_for = None
+                    st.success("Scene permanently saved!")
+                    st.rerun()
+                else:
+                    st.error(f"Save error: {message}")
 
         st.info(
             "Video generation engine abhi connect nahi hai. "
