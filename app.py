@@ -574,7 +574,7 @@ with st.sidebar:
     st.caption(st.session_state.username)
     st.caption(st.session_state.auth_method)
 
-       if st.button("Logout", use_container_width=True):
+    if st.button("Logout", use_container_width=True):
 
         try:
             get_supabase().auth.sign_out()
