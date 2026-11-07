@@ -1,461 +1,1131 @@
 
 import streamlit as st
+import json
+from datetime import datetime
+from supabase import create_client
+
+# -----------------------------------------
+# APP CONFIG
+# -----------------------------------------
 
 st.set_page_config(
     page_title="UNIVERSE AI STUDIO",
     page_icon="🎬",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
+
+# -----------------------------------------
+# SUPABASE
+# -----------------------------------------
+
+@st.cache_resource
+def get_supabase():
+    return create_client(
+        st.secrets["supabase"]["url"],
+        st.secrets["supabase"]["anon_key"]
+    )
+
+
+def redirect_url():
+    return st.secrets["supabase"]["redirect_url"]
+
+
+def set_logged_in_user(user, method):
+    st.session_state.logged_in = True
+    st.session_state.username = getattr(user, "email", "") or ""
+
+    metadata = getattr(user, "user_metadata", None) or {}
+
+    st.session_state.profile_name = (
+        metadata.get("full_name")
+        or metadata.get("name")
+        or metadata.get("display_name")
+        or ""
+    )
+
+    st.session_state.auth_method = method
+
+
+# -----------------------------------------
+# SESSION DATA
+# -----------------------------------------
+
+defaults = {
+    "logged_in": False,
+    "username": "",
+    "profile_name": "",
+    "auth_method": "",
+    "otp_email": "",
+    "otp_sent": False,
+    "scenes": [],
+    "characters": [],
+    "locations": [],
+    "projects": [],
+    "clips": [],
+    "project_name": "My First Film",
+}
+
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+
+# -----------------------------------------
+# DESIGN
+# -----------------------------------------
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
 
-* { font-family: 'Inter', sans-serif; }
+html, body, [class*="css"] {
+    font-family: Inter, sans-serif;
+}
 
 .stApp {
-    background: #080a12;
-    color: #f4f4fa;
+    background:
+    radial-gradient(ellipse at 15% 0%,#21163c,transparent 35%),
+    radial-gradient(ellipse at 90% 10%,#101f3b,transparent 30%),
+    #080a12;
+    color:#f5f5fa;
 }
 
 [data-testid="stSidebar"] {
-    background: #101321;
-    border-right: 1px solid #25283a;
+    background:#0d1020;
+    border-right:1px solid #242941;
 }
 
-[data-testid="stSidebar"] > div {
-    padding-top: 25px;
+.block-container {
+    max-width:1600px;
+    padding-top:2rem;
+    padding-bottom:4rem;
 }
 
 .brand {
-    font-size: 25px;
-    font-weight: 800;
-    letter-spacing: -1px;
-    color: white;
-    margin-bottom: 4px;
+    font-size:25px;
+    font-weight:900;
+    color:white;
 }
 
-.brand span { color: #a78bfa; }
-
-.tagline {
-    color: #888da5;
-    font-size: 11px;
-    letter-spacing: 3px;
-    margin-bottom: 30px;
+.brand span {
+    color:#a78bfa;
 }
 
 .hero {
-    background: linear-gradient(115deg, #17152d, #211c40 55%, #151a30);
-    border: 1px solid #373052;
-    border-radius: 22px;
-    padding: 35px;
-    margin-bottom: 25px;
-}
-
-.hero h1 {
-    font-size: 37px;
-    font-weight: 800;
-    margin: 0;
-    color: white;
-}
-
-.hero p {
-    color: #b7b1d2;
-    font-size: 14px;
-    margin-top: 12px;
-}
-
-.eyebrow {
-    color: #b69aff;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 3px;
-    margin-bottom: 12px;
+    background:linear-gradient(120deg,#21183d,#171b35,#101c31);
+    border:1px solid #454064;
+    border-radius:22px;
+    padding:32px;
+    margin-bottom:24px;
 }
 
 .panel {
-    background: #121626;
-    border: 1px solid #282d43;
-    border-radius: 17px;
-    padding: 22px;
-    min-height: 135px;
-    margin-bottom: 15px;
+    background:#171c30;
+    border:1px solid #2c334e;
+    border-radius:16px;
+    padding:20px;
+    margin-bottom:14px;
 }
 
-.panel h3 {
-    color: white;
-    font-size: 17px;
-    margin: 8px 0;
+.small-muted {
+    color:#a5a9bd;
+    font-size:13px;
 }
 
-.panel p {
-    color: #9299b2;
-    font-size: 12px;
+.stButton>button {
+    background:linear-gradient(100deg,#7650e8,#a16af4);
+    color:white;
+    border:0;
+    border-radius:10px;
+    font-weight:700;
+    min-height:42px;
 }
 
-.panel-icon { font-size: 27px; }
-
-.section-title {
-    color: white;
-    font-size: 21px;
-    font-weight: 700;
-    margin: 25px 0 15px;
-}
-
-.metric {
-    background: #121626;
-    border: 1px solid #282d43;
-    padding: 18px;
-    border-radius: 15px;
-}
-
-.metric small { color: #9299b2; }
-.metric h2 { color: white; margin: 7px 0 0; }
-
-.stButton > button {
-    background: linear-gradient(90deg, #8058e8, #a06af5);
-    color: white;
-    border: 0;
-    border-radius: 10px;
-    padding: 11px 22px;
-    font-weight: 700;
-    min-height: 43px;
-}
-
-.stButton > button:hover {
-    background: #b08cff;
-    color: white;
-    border: 0;
-}
-
-.stTextInput input, .stTextArea textarea,
+.stTextInput input,
+.stTextArea textarea,
 .stSelectbox div[data-baseweb="select"] {
-    background: #171c2d;
-    color: white;
-    border-color: #343950;
-    border-radius: 10px;
+    background:#171d30;
+    color:white;
 }
 
-label { color: #c8cbe0 !important; }
+[data-testid="stMetric"] {
+    background:#171c30;
+    border:1px solid #2c334e;
+    padding:15px;
+    border-radius:14px;
+}
 
-hr { border-color: #282d43; }
-
-footer { visibility: hidden; }
-
-[data-testid="stHeader"] {
-    background: transparent;
+hr {
+    border-color:#30364f;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# SIDEBAR
+
+# -----------------------------------------
+# AUTH SCREEN
+# -----------------------------------------
+
+def auth_screen():
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    left, center, right = st.columns([1, 1.4, 1])
+
+    with center:
+
+        st.markdown("""
+        <div style="text-align:center">
+            <div class="brand">UNIVERSE <span>AI</span></div>
+            <p style="letter-spacing:3px;color:#999">
+                THE AI FILMMAKING UNIVERSE
+            </p>
+            <h1>Your Story.<br>Your Universe.</h1>
+            <p>Create cinematic worlds with AI.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        email_tab, google_tab = st.tabs([
+            "EMAIL LOGIN",
+            "GOOGLE LOGIN"
+        ])
+
+        with email_tab:
+
+            st.markdown("### Sign in or create account")
+
+            if not st.session_state.otp_sent:
+
+                with st.form("send_otp"):
+
+                    email = st.text_input(
+                        "Email Address",
+                        placeholder="you@example.com"
+                    ).strip().lower()
+
+                    send = st.form_submit_button(
+                        "Send OTP",
+                        use_container_width=True
+                    )
+
+                if send:
+
+                    if "@" not in email:
+                        st.error("Valid email enter karo.")
+
+                    else:
+                        try:
+                            get_supabase().auth.sign_in_with_otp({
+                                "email": email,
+                                "options": {"should_create_user": True}
+                            })
+
+                            st.session_state.otp_email = email
+                            st.session_state.otp_sent = True
+
+                            st.success("Email bhej di gayi.")
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"OTP error: {e}")
+
+            else:
+
+                st.info(
+                    f"OTP sent to {st.session_state.otp_email}"
+                )
+
+                with st.form("verify_otp"):
+
+                    token = st.text_input(
+                        "6-digit OTP",
+                        max_chars=6
+                    ).strip()
+
+                    verify = st.form_submit_button(
+                        "Verify OTP & Login",
+                        use_container_width=True
+                    )
+
+                if verify:
+
+                    try:
+
+                        if len(token) != 6 or not token.isdigit():
+                            st.error("6-digit OTP enter karo.")
+
+                        else:
+
+                            result = get_supabase().auth.verify_otp({
+                                "email": st.session_state.otp_email,
+                                "token": token,
+                                "type": "email"
+                            })
+
+                            set_logged_in_user(
+                                result.user,
+                                "Email OTP"
+                            )
+
+                            st.session_state.otp_sent = False
+                            st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Verification failed: {e}")
+
+                if st.button("Change Email"):
+                    st.session_state.otp_sent = False
+                    st.rerun()
+
+        with google_tab:
+
+            st.markdown("### Continue with Google")
+
+            if st.button(
+                "Continue with Google",
+                use_container_width=True
+            ):
+
+                try:
+
+                    result = get_supabase().auth.sign_in_with_oauth({
+                        "provider": "google",
+                        "options": {"redirect_to": redirect_url()}
+                    })
+
+                    st.link_button(
+                        "Open Google Sign In",
+                        result.url,
+                        use_container_width=True
+                    )
+
+                except Exception as e:
+                    st.error(f"Google login error: {e}")
+
+        st.markdown(
+            "<p style='text-align:center;color:#888'>"
+            "UNIVERSE AI STUDIO • CREATE WITHOUT LIMITS</p>",
+            unsafe_allow_html=True
+        )
+
+
+# -----------------------------------------
+# GOOGLE CALLBACK
+# -----------------------------------------
+
+def handle_google_callback():
+
+    code = st.query_params.get("code")
+
+    if code:
+
+        try:
+
+            result = get_supabase().auth.exchange_code_for_session({
+                "auth_code": code
+            })
+
+            set_logged_in_user(result.user, "Google")
+            st.query_params.clear()
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Google login error: {e}")
+
+
+if not st.session_state.logged_in:
+    handle_google_callback()
+
+if not st.session_state.logged_in:
+    auth_screen()
+    st.stop()
+
+
+# -----------------------------------------
+# SIDEBAR NAVIGATION
+# -----------------------------------------
+
 with st.sidebar:
-    st.markdown("""
-    <div class="brand">UNIVERSE <span>AI</span></div>
-    <div class="tagline">FILMMAKING STUDIO</div>
-    """, unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="brand">UNIVERSE <span>AI</span></div>',
+        unsafe_allow_html=True
+    )
+
+    st.caption("AI FILMMAKING WORKSPACE")
+    st.divider()
 
     page = st.radio(
-        "WORKSPACE",
+        "NAVIGATION",
         [
-            "🏠 Dashboard",
-            "🎬 Text to Video",
-            "🖼️ Image to Video",
-            "🧑 Character Studio",
-            "🌍 Location Studio",
-            "🎙️ Voice & Lip-Sync",
-            "📋 Storyboard",
-            "✂️ Movie Editor",
-            "📁 My Projects"
+            "🏠 Overview",
+            "🎥 Film Studio",
+            "🧑 Character Library",
+            "🌍 Location Library",
+            "📁 My Projects",
+            "👤 My Profile",
+            "⚙️ Settings"
         ],
-        label_visibility="visible"
+        key="main_navigation"
     )
 
     st.divider()
-    st.markdown("### ⚙️ Settings")
-    st.caption("UNIVERSE AI STUDIO")
-    st.caption("Version 1.0 • UI Prototype")
 
-# DASHBOARD
-if page == "🏠 Dashboard":
+    st.write(
+        "👤",
+        st.session_state.profile_name or "Your Profile"
+    )
+
+    st.caption(st.session_state.username)
+    st.caption(st.session_state.auth_method)
+
+    if st.button("Logout", use_container_width=True):
+
+        try:
+            get_supabase().auth.sign_out()
+        except Exception:
+            pass
+
+        for key in [
+            "logged_in",
+            "username",
+            "profile_name",
+            "auth_method"
+        ]:
+            st.session_state[key] = (
+                False if key == "logged_in" else ""
+            )
+
+        st.rerun()
+
+
+# -----------------------------------------
+# OVERVIEW
+# -----------------------------------------
+
+if page == "🏠 Overview":
+
     st.markdown("""
     <div class="hero">
-        <div class="eyebrow">YOUR CREATIVE UNIVERSE</div>
-        <h1>Imagine. Create. <span style="color:#b69aff">Direct.</span></h1>
-        <p>Turn your imagination into cinematic stories with AI-powered filmmaking tools.</p>
+        <h1>Imagine. Create. Direct. 🎬</h1>
+        <p>Your personal AI filmmaking workspace.</p>
+        <p class="small-muted">
+            Create stories, characters and cinematic worlds.
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="section-title">Your Workspace</div>',
-                unsafe_allow_html=True)
+    welcome = (
+        st.session_state.profile_name
+        or st.session_state.username
+    )
 
-    c1, c2, c3 = st.columns(3)
+    st.markdown(f"### Welcome {welcome} 👋")
+
+    a, b, c, d = st.columns(4)
+
+    a.metric("Scenes", len(st.session_state.scenes))
+    b.metric("Characters", len(st.session_state.characters))
+    c.metric("Locations", len(st.session_state.locations))
+    d.metric("Projects", len(st.session_state.projects))
+
+    st.markdown("## Your Creative Workspace")
+
+    cols = st.columns(3)
 
     cards = [
-        ("🎬", "Text to Video", "Create cinematic scenes from text prompts."),
-        ("🖼️", "Image to Video", "Bring your images to life with motion."),
-        ("🧑", "Character Studio", "Create and manage consistent characters."),
-        ("🌍", "Location Studio", "Keep locations consistent across scenes."),
-        ("🎙️", "Voice & Lip-Sync", "Dialogue, emotion and character voices."),
-        ("📋", "Storyboard", "Plan your film scene by scene.")
+        ("🎥 Film Studio", "Create and plan cinematic scenes."),
+        ("🧑 Characters", "Create and manage film characters."),
+        ("🌍 Locations", "Build your story environments."),
+        ("📋 Storyboard", "Organize your film scenes."),
+        ("🎙️ Audio", "Prepare dialogue and voice instructions."),
+        ("✂️ Editor", "Organize your video clips.")
     ]
 
-    for i, (icon, title, desc) in enumerate(cards):
-        with [c1, c2, c3][i % 3]:
-            st.markdown(f"""
-            <div class="panel">
-                <div class="panel-icon">{icon}</div>
-                <h3>{title}</h3>
-                <p>{desc}</p>
-            </div>
-            """, unsafe_allow_html=True)
+    for i, (title, desc) in enumerate(cards):
 
-    st.markdown('<div class="section-title">Studio Overview</div>',
-                unsafe_allow_html=True)
+        with cols[i % 3]:
+            st.markdown(
+                f"""
+                <div class="panel">
+                    <h3>{title}</h3>
+                    <p>{desc}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-    a, b, c = st.columns(3)
-    for col, number, label in [
-        (a, "00", "Projects"),
-        (b, "00", "Scenes"),
-        (c, "00", "Characters")
-    ]:
-        with col:
-            st.markdown(f"""
-            <div class="metric">
-                <small>{label}</small>
-                <h2>{number}</h2>
-            </div>
-            """, unsafe_allow_html=True)
 
-# TEXT TO VIDEO
-elif page == "🎬 Text to Video":
-    st.markdown("## 🎬 Text to Video")
-    st.caption("Create a cinematic scene from your imagination.")
+# -----------------------------------------
+# FILM STUDIO
+# -----------------------------------------
 
-    prompt = st.text_area(
-        "Describe your scene",
-        placeholder="A cinematic shot of a mysterious warrior walking through an ancient city at night...",
-        height=160
+elif page == "🎥 Film Studio":
+
+    st.markdown("""
+    <div class="hero">
+        <h1>🎥 Film Studio</h1>
+        <p>Create your scenes and plan your movie.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.text_input(
+        "Film / Project Name",
+        key="project_name"
     )
 
-    a, b, c = st.columns(3)
-    with a:
-        style = st.selectbox("Visual Style", [
-            "Cinematic", "Anime", "Realistic", "Fantasy",
-            "Sci-Fi", "Horror", "3D Animation"
-        ])
-    with b:
-        ratio = st.selectbox("Aspect Ratio", [
-            "16:9", "9:16", "1:1"
-        ])
-    with c:
-        duration = st.selectbox("Duration", [
-            "5 seconds", "10 seconds", "15 seconds",
-            "30 seconds"
-        ])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "Text to Video",
+        "Image to Video",
+        "Storyboard",
+        "Audio & Dialogue",
+        "Editor"
+    ])
 
-    if st.button("✨ Prepare Video Prompt"):
-        if prompt.strip():
-            st.success("Your prompt is ready!")
-            st.code(prompt)
-            st.info("Video generation engine is not connected yet. This prototype prepares your creative settings.")
-        else:
-            st.warning("Please enter a scene description.")
+    # TEXT TO VIDEO
 
-# IMAGE TO VIDEO
-elif page == "🖼️ Image to Video":
-    st.markdown("## 🖼️ Image to Video")
-    st.caption("Transform a still image into a moving cinematic scene.")
+    with tab1:
 
-    uploaded = st.file_uploader(
-        "Upload your reference image",
-        type=["png", "jpg", "jpeg", "webp"]
-    )
+        st.markdown("### 🎬 Create a Cinematic Scene")
 
-    if uploaded:
-        st.image(uploaded, width=450)
+        with st.form("scene_form"):
 
-    motion = st.text_area(
-        "Describe the movement",
-        placeholder="Camera slowly moves forward. Character turns around. Wind moves the hair..."
-    )
+            scene_name = st.text_input(
+                "Scene Name",
+                placeholder="Example: Hero Entry"
+            )
 
-    if st.button("✨ Prepare Animation"):
-        if uploaded and motion.strip():
-            st.success("Image and motion prompt are ready.")
-            st.info("Connect a supported video engine to generate the actual clip.")
-        else:
-            st.warning("Upload an image and describe its movement.")
+            prompt = st.text_area(
+                "Describe Your Scene",
+                height=150,
+                placeholder="Describe characters, action, environment, lighting and camera movement..."
+            )
 
-# CHARACTER STUDIO
-elif page == "🧑 Character Studio":
-    st.markdown("## 🧑 Character Studio")
-    st.caption("Build your character reference library.")
+            style = st.selectbox(
+                "Visual Style",
+                [
+                    "Cinematic Realism",
+                    "Anime",
+                    "3D Animation",
+                    "Fantasy",
+                    "Sci-Fi",
+                    "Horror",
+                    "Documentary"
+                ]
+            )
 
-    image = st.file_uploader(
-        "Upload character reference",
-        type=["png", "jpg", "jpeg", "webp"]
-    )
+            camera = st.selectbox(
+                "Camera Movement",
+                [
+                    "Static Shot",
+                    "Slow Zoom In",
+                    "Slow Zoom Out",
+                    "Tracking Shot",
+                    "Pan Left",
+                    "Pan Right",
+                    "Drone Shot",
+                    "Handheld"
+                ]
+            )
 
-    name = st.text_input("Character Name")
-    description = st.text_area(
-        "Character Appearance",
-        placeholder="Face, hairstyle, clothes, body, accessories, age appearance..."
-    )
+            duration = st.selectbox(
+                "Scene Duration",
+                ["5 seconds", "10 seconds", "15 seconds", "30 seconds"]
+            )
 
-    if image:
-        st.image(image, width=300)
+            create_scene = st.form_submit_button(
+                "Add Scene to Storyboard",
+                use_container_width=True
+            )
 
-    if st.button("Save Character Profile"):
-        if name.strip() and description.strip() and image:
-            st.success("Character details prepared for your project.")
-            st.info("Persistent character saving will be added in the next development phase.")
-        else:
-            st.warning("Add a name, appearance description and reference image.")
+        if create_scene:
 
-# LOCATION STUDIO
-elif page == "🌍 Location Studio":
-    st.markdown("## 🌍 Location Studio")
-    st.caption("Create reusable environment references.")
+            if not prompt.strip():
+                st.error("Scene description likho.")
 
-    image = st.file_uploader(
-        "Upload location reference",
-        type=["png", "jpg", "jpeg", "webp"]
-    )
-
-    name = st.text_input("Location Name")
-    details = st.text_area(
-        "Describe the Environment",
-        placeholder="Architecture, lighting, weather, colors, objects, camera viewpoint..."
-    )
-
-    if image:
-        st.image(image, width=400)
-
-    if st.button("Save Location"):
-        if name.strip() and details.strip() and image:
-            st.success("Location reference details prepared.")
-            st.info("Persistent location saving will be added in a later phase.")
-        else:
-            st.warning("Complete the location details and upload an image.")
-
-# VOICE AND LIP SYNC
-elif page == "🎙️ Voice & Lip-Sync":
-    st.markdown("## 🎙️ Voice & Lip-Sync")
-
-    character = st.text_input("Character Name")
-    dialogue = st.text_area(
-        "Dialogue",
-        placeholder="Enter your Hindi or English dialogue here..."
-    )
-
-    a, b = st.columns(2)
-    with a:
-        language = st.selectbox("Language", [
-            "Hindi", "English", "Hinglish"
-        ])
-    with b:
-        emotion = st.selectbox("Emotion", [
-            "Natural", "Happy", "Sad", "Angry",
-            "Fearful", "Excited", "Whispering"
-        ])
-
-    if st.button("Prepare Voice Scene"):
-        if dialogue.strip():
-            st.success("Dialogue settings prepared.")
-            st.write("Character:", character or "Not specified")
-            st.write("Language:", language)
-            st.write("Emotion:", emotion)
-            st.info("Voice generation and lip-sync engines are not connected yet.")
-        else:
-            st.warning("Enter dialogue first.")
-
-# STORYBOARD
-elif page == "📋 Storyboard":
-    st.markdown("## 📋 Storyboard")
-    st.caption("Plan your film scene by scene.")
-
-    if "scenes" not in st.session_state:
-        st.session_state.scenes = []
-
-    with st.form("scene_form"):
-        scene_name = st.text_input("Scene Name")
-        scene_prompt = st.text_area("Scene Description")
-        camera = st.selectbox("Camera Movement", [
-            "Static", "Pan", "Tilt", "Zoom In",
-            "Zoom Out", "Tracking", "Drone Shot"
-        ])
-        submitted = st.form_submit_button("＋ Add Scene")
-
-        if submitted:
-            if scene_name.strip() and scene_prompt.strip():
-                st.session_state.scenes.append({
-                    "name": scene_name,
-                    "prompt": scene_prompt,
-                    "camera": camera
-                })
-                st.success("Scene added to storyboard.")
             else:
-                st.warning("Enter scene name and description.")
+
+                st.session_state.scenes.append({
+                    "name": scene_name or f"Scene {len(st.session_state.scenes)+1}",
+                    "prompt": prompt,
+                    "style": style,
+                    "camera": camera,
+                    "duration": duration,
+                    "created": datetime.now().strftime("%Y-%m-%d %H:%M")
+                })
+
+                st.success("Scene storyboard mein add ho gaya.")
+                st.rerun()
+
+        st.info(
+            "Video generation engine abhi connect nahi hai. "
+            "Yahan scene prompt aur production details save ki ja sakti hain."
+        )
+
+    # IMAGE TO VIDEO
+
+    with tab2:
+
+        st.markdown("### 🖼️ Image to Video")
+
+        uploaded_image = st.file_uploader(
+            "Upload Reference Image",
+            type=["png", "jpg", "jpeg"],
+            key="image_motion_upload"
+        )
+
+        motion_prompt = st.text_area(
+            "Describe Image Motion",
+            placeholder="Example: Character slowly turns around while camera moves closer."
+        )
+
+        motion_style = st.selectbox(
+            "Motion Type",
+            [
+                "Slow Cinematic Motion",
+                "Character Animation",
+                "Camera Movement",
+                "Action Motion",
+                "Environment Motion"
+            ]
+        )
+
+        if uploaded_image:
+            st.image(
+                uploaded_image,
+                caption="Uploaded Reference",
+                use_container_width=True
+            )
+
+        if st.button("Prepare Image Motion Prompt"):
+
+            if uploaded_image and motion_prompt.strip():
+
+                st.success("Reference image and motion instructions ready.")
+
+            else:
+                st.warning("Image aur motion description dono add karo.")
+
+        st.info(
+            "Image-to-video generation abhi connected nahi hai."
+        )
+
+    # STORYBOARD
+
+    with tab3:
+
+        st.markdown("### 📋 Your Storyboard")
+
+        if not st.session_state.scenes:
+            st.info("Abhi koi scene nahi hai. Text to Video tab se scene add karo.")
+
+        for i, scene in enumerate(st.session_state.scenes):
+
+            with st.expander(
+                f"Scene {i+1}: {scene['name']}",
+                expanded=True
+            ):
+
+                st.write("**Prompt:**", scene["prompt"])
+                st.write("**Style:**", scene["style"])
+                st.write("**Camera:**", scene["camera"])
+                st.write("**Duration:**", scene["duration"])
+
+                if st.button("Delete Scene", key=f"delete_scene_{i}"):
+
+                    st.session_state.scenes.pop(i)
+                    st.rerun()
+
+    # AUDIO
+
+    with tab4:
+
+        st.markdown("### 🎙️ Audio & Dialogue Studio")
+
+        character_names = [
+            c["name"] for c in st.session_state.characters
+        ]
+
+        character_options = ["No character selected"] + character_names
+
+        with st.form("audio_form"):
+
+            speaker = st.selectbox(
+                "Character",
+                character_options
+            )
+
+            dialogue = st.text_area(
+                "Dialogue / Voiceover",
+                placeholder="Enter your Hindi or English dialogue..."
+            )
+
+            language = st.selectbox(
+                "Language",
+                ["Hindi", "English", "Hinglish", "Gujarati", "Other"]
+            )
+
+            emotion = st.selectbox(
+                "Emotion",
+                [
+                    "Normal",
+                    "Happy",
+                    "Sad",
+                    "Angry",
+                    "Excited",
+                    "Whispering",
+                    "Dramatic"
+                ]
+            )
+
+            audio_submit = st.form_submit_button(
+                "Prepare Dialogue"
+            )
+
+        if audio_submit:
+
+            if dialogue.strip():
+
+                st.session_state.clips.append({
+                    "type": "Dialogue",
+                    "speaker": speaker,
+                    "text": dialogue,
+                    "language": language,
+                    "emotion": emotion
+                })
+
+                st.success("Dialogue details saved in this session.")
+
+            else:
+                st.error("Dialogue likho.")
+
+        st.info(
+            "AI voice generation aur lip-sync engine abhi connected nahi hai."
+        )
+
+    # EDITOR
+
+    with tab5:
+
+        st.markdown("### ✂️ Movie Editor Workspace")
+
+        st.write("Project:", st.session_state.project_name)
+
+        st.metric("Storyboard Scenes", len(st.session_state.scenes))
+        st.metric("Dialogue Items", len(st.session_state.clips))
+
+        st.markdown("#### Production Checklist")
+
+        st.checkbox("Storyboard completed")
+        st.checkbox("Character references checked")
+        st.checkbox("Location references checked")
+        st.checkbox("Voiceover prepared")
+        st.checkbox("Sound effects planned")
+        st.checkbox("Final video reviewed")
+
+        st.info(
+            "Timeline editing, rendering and MP4 export engine abhi connected nahi hai."
+        )
+
+
+# -----------------------------------------
+# CHARACTER LIBRARY
+# -----------------------------------------
+
+elif page == "🧑 Character Library":
+
+    st.markdown("""
+    <div class="hero">
+        <h1>🧑 Character Library</h1>
+        <p>Create and organize your movie characters.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.form("character_form"):
+
+        name = st.text_input("Character Name")
+
+        role = st.selectbox(
+            "Character Role",
+            [
+                "Hero",
+                "Heroine",
+                "Villain",
+                "Supporting Character",
+                "Background Character",
+                "Other"
+            ]
+        )
+
+        appearance = st.text_area(
+            "Physical Appearance",
+            placeholder="Describe face, hair, body, clothes and other visible details."
+        )
+
+        personality = st.text_area(
+            "Personality",
+            placeholder="Describe the character's personality."
+        )
+
+        reference = st.text_area(
+            "Consistency Notes",
+            placeholder="Details that must remain the same in every scene."
+        )
+
+        save_character = st.form_submit_button(
+            "Save Character",
+            use_container_width=True
+        )
+
+    if save_character:
+
+        if not name.strip():
+            st.error("Character name enter karo.")
+
+        else:
+
+            st.session_state.characters.append({
+                "name": name,
+                "role": role,
+                "appearance": appearance,
+                "personality": personality,
+                "reference": reference
+            })
+
+            st.success("Character saved.")
+            st.rerun()
 
     st.divider()
-    for i, scene in enumerate(st.session_state.scenes):
-        with st.expander(f"Scene {i+1}: {scene['name']}"):
-            st.write(scene["prompt"])
-            st.caption("Camera: " + scene["camera"])
+    st.markdown("### Your Characters")
 
-    if st.button("Clear Storyboard"):
-        st.session_state.scenes = []
+    if not st.session_state.characters:
+        st.info("Abhi koi character create nahi hua.")
+
+    for i, character in enumerate(st.session_state.characters):
+
+        with st.expander(character["name"]):
+
+            st.write("**Role:**", character["role"])
+            st.write("**Appearance:**", character["appearance"])
+            st.write("**Personality:**", character["personality"])
+            st.write("**Consistency:**", character["reference"])
+
+            if st.button("Delete Character", key=f"delete_character_{i}"):
+
+                st.session_state.characters.pop(i)
+                st.rerun()
+
+
+# -----------------------------------------
+# LOCATION LIBRARY
+# -----------------------------------------
+
+elif page == "🌍 Location Library":
+
+    st.markdown("""
+    <div class="hero">
+        <h1>🌍 Location Library</h1>
+        <p>Create and organize your cinematic environments.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.form("location_form"):
+
+        location_name = st.text_input("Location Name")
+
+        location_type = st.selectbox(
+            "Environment Type",
+            [
+                "City",
+                "Village",
+                "Forest",
+                "Mountain",
+                "Desert",
+                "Space",
+                "Indoor",
+                "Fantasy World",
+                "Other"
+            ]
+        )
+
+        description = st.text_area(
+            "Environment Description",
+            placeholder="Describe buildings, landscape, lighting, weather and atmosphere."
+        )
+
+        consistency = st.text_area(
+            "Location Consistency Notes",
+            placeholder="Details that should remain the same across scenes."
+        )
+
+        save_location = st.form_submit_button(
+            "Save Location",
+            use_container_width=True
+        )
+
+    if save_location:
+
+        if not location_name.strip():
+            st.error("Location name enter karo.")
+
+        else:
+
+            st.session_state.locations.append({
+                "name": location_name,
+                "type": location_type,
+                "description": description,
+                "consistency": consistency
+            })
+
+            st.success("Location saved.")
+            st.rerun()
+
+    st.divider()
+    st.markdown("### Your Locations")
+
+    if not st.session_state.locations:
+        st.info("Abhi koi location create nahi hui.")
+
+    for i, location in enumerate(st.session_state.locations):
+
+        with st.expander(location["name"]):
+
+            st.write("**Type:**", location["type"])
+            st.write("**Description:**", location["description"])
+            st.write("**Consistency:**", location["consistency"])
+
+            if st.button("Delete Location", key=f"delete_location_{i}"):
+
+                st.session_state.locations.pop(i)
+                st.rerun()
+
+
+# -----------------------------------------
+# MY PROJECTS
+# -----------------------------------------
+
+elif page == "📁 My Projects":
+
+    st.markdown("""
+    <div class="hero">
+        <h1>📁 My Projects</h1>
+        <p>Manage and export your film projects.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### Current Project")
+
+    st.write("Project Name:", st.session_state.project_name)
+
+    st.write("Scenes:", len(st.session_state.scenes))
+    st.write("Characters:", len(st.session_state.characters))
+    st.write("Locations:", len(st.session_state.locations))
+
+    if st.button("Save Project Snapshot", use_container_width=True):
+
+        snapshot = {
+            "name": st.session_state.project_name,
+            "scenes": st.session_state.scenes.copy(),
+            "characters": st.session_state.characters.copy(),
+            "locations": st.session_state.locations.copy(),
+            "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+        }
+
+        st.session_state.projects.append(snapshot)
+
+        st.success("Project snapshot saved in this session.")
         st.rerun()
 
-# MOVIE EDITOR
-elif page == "✂️ Movie Editor":
-    st.markdown("## ✂️ Movie Editor")
-    st.caption("Prepare your clips and final film.")
+    project_data = {
+        "project_name": st.session_state.project_name,
+        "scenes": st.session_state.scenes,
+        "characters": st.session_state.characters,
+        "locations": st.session_state.locations,
+        "dialogues": st.session_state.clips
+    }
 
-    clips = st.file_uploader(
-        "Upload video clips",
-        type=["mp4", "mov", "webm"],
-        accept_multiple_files=True
+    st.download_button(
+        "⬇️ Export Current Project JSON",
+        data=json.dumps(project_data, indent=4, ensure_ascii=False),
+        file_name="universe_ai_project.json",
+        mime="application/json",
+        use_container_width=True
     )
 
-    if clips:
-        st.success(f"{len(clips)} clip(s) uploaded.")
-        for clip in clips:
-            st.write("🎞️", clip.name)
+    st.divider()
+    st.markdown("### Saved Project Snapshots")
 
-    music = st.file_uploader(
-        "Upload background music",
-        type=["mp3", "wav"]
+    if not st.session_state.projects:
+        st.info("Abhi koi project snapshot save nahi hua.")
+
+    for i, project in enumerate(st.session_state.projects):
+
+        with st.expander(project["name"]):
+
+            st.write("Saved:", project["saved_at"])
+            st.write("Scenes:", len(project["scenes"]))
+            st.write("Characters:", len(project["characters"]))
+            st.write("Locations:", len(project["locations"]))
+
+            st.download_button(
+                "Download Project",
+                data=json.dumps(
+                    project,
+                    indent=4,
+                    ensure_ascii=False
+                ),
+                file_name=f"project_{i+1}.json",
+                mime="application/json",
+                key=f"download_project_{i}"
+            )
+
+
+# -----------------------------------------
+# MY PROFILE
+# -----------------------------------------
+
+elif page == "👤 My Profile":
+
+    st.markdown("""
+    <div class="hero">
+        <h1>👤 My Profile</h1>
+        <p>Manage your account information.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### Profile Information")
+
+    st.text_input(
+        "Account Email",
+        value=st.session_state.username,
+        disabled=True
     )
 
-    if music:
-        st.write("🎵", music.name)
+    with st.form("profile_form"):
 
-    st.info("Timeline editing, transitions, subtitles and MP4 rendering will be developed in the editing phase.")
+        new_name = st.text_input(
+            "Your Display Name",
+            value=st.session_state.profile_name
+        )
 
-# PROJECTS
-elif page == "📁 My Projects":
-    st.markdown("## 📁 My Projects")
-    st.caption("Your filmmaking workspace.")
+        save_profile = st.form_submit_button(
+            "Save Profile",
+            use_container_width=True
+        )
 
-    if "scenes" not in st.session_state:
-        st.session_state.scenes = []
+    if save_profile:
 
-    st.metric("Storyboard Scenes", len(st.session_state.scenes))
+        try:
 
-    if st.session_state.scenes:
-        for i, scene in enumerate(st.session_state.scenes):
-            st.write(f"**{i+1}. {scene['name']}**")
-            st.caption(scene["prompt"])
-    else:
-        st.info("No scenes created yet. Start with Storyboard.")
+            get_supabase().auth.update_user({
+                "data": {"full_name": new_name}
+            })
+
+            st.session_state.profile_name = new_name
+
+            st.success("Profile name updated.")
+
+        except Exception as e:
+            st.error(f"Profile update failed: {e}")
+
+    st.divider()
+    st.markdown("### Change Email Address")
+
+    with st.form("email_change_form"):
+
+        new_email = st.text_input(
+            "New Email Address",
+            placeholder="newemail@example.com"
+        ).strip().lower()
+
+        change_email = st.form_submit_button(
+            "Request Email Change"
+        )
+
+    if change_email:
+
+        if "@" not in new_email:
+            st.error("Valid email enter karo.")
+
+        elif new_email == st.session_state.username.lower():
+            st.warning("Ye email already account mein hai.")
+
+        else:
+
+            try:
+
+                get_supabase().auth.update_user({
+                    "email": new_email
+                })
+
+                st.success(
+                    "Email change request sent. "
+                    "New email par verification instructions check karo."
+                )
+
+            except Exception as e:
+                st.error(f"Email update failed: {e}")
+
+    st.divider()
+
+    st.write("Login Method:", st.session_state.auth_method)
+
+
+# -----------------------------------------
+# SETTINGS
+# -----------------------------------------
+
+elif page == "⚙️ Settings":
+
+    st.markdown("""
+    <div class="hero">
+        <h1>⚙️ Settings</h1>
+        <p>Manage your workspace and project preferences.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### Workspace Settings")
+
+    st.text_input(
+        "Default Project Name",
+        key="project_name"
+    )
+
+    st.markdown("### Account")
+
+    st.write("Email:", st.session_state.username)
+    st.write("Login Method:", st.session_state.auth_method)
+
+    st.markdown("### Workspace Information")
+
+    st.write("Scenes:", len(st.session_state.scenes))
+    st.write("Characters:", len(st.session_state.characters))
+    st.write("Locations:", len(st.session_state.locations))
+
+    st.info(
+        "Scene, character, location and project data currently "
+        "remain in the active Streamlit session. Permanent database "
+        "storage is not connected yet."
+    )
+
+    st.markdown("### About")
+
+    st.write("UNIVERSE AI STUDIO")
+    st.write("AI Filmmaking Workspace")
+    st.write("Version 1.0")
+
+
+# -----------------------------------------
+# FOOTER
+# -----------------------------------------
 
 st.divider()
+
 st.markdown(
-    "<center style='color:#666d86;font-size:11px'>"
-    "UNIVERSE AI STUDIO • CREATE YOUR OWN UNIVERSE"
-    "</center>",
+    """
+    <div style="text-align:center;color:#888;padding:10px">
+        UNIVERSE AI STUDIO · CREATE YOUR OWN UNIVERSE 🎬
+    </div>
+    """,
     unsafe_allow_html=True
 )
