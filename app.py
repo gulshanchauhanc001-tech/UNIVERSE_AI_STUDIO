@@ -119,7 +119,7 @@ def get_supabase():
 
 def redirect_url():
     base = st.secrets["supabase"]["redirect_url"].rstrip("/")
-    return f"{base}?auth_sid={AUTH_NAMESPACE}"
+    return f"{base}/?auth_sid={AUTH_NAMESPACE}"
 
 
 def set_logged_in_user(user, method):
