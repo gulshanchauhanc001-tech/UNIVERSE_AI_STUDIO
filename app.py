@@ -765,7 +765,7 @@ elif page == "🎥 Film Studio":
             "Image-to-video generation abhi connected nahi hai."
         )
 
-    # STORYBOARD
+        # STORYBOARD
 
     with tab3:
 
@@ -788,11 +788,28 @@ elif page == "🎥 Film Studio":
 
                 if st.button("Delete Scene", key=f"delete_scene_{i}"):
 
-                    st.session_state.scenes.pop(i)
-                    st.rerun()
+                    memory_id = scene.get("_memory_id")
+
+                    if memory_id:
+                        try:
+                            get_supabase().table("ai_memory").delete().eq(
+                                "id", memory_id
+                            ).eq(
+                                "user_id", st.session_state.user_id
+                            ).execute()
+
+                            st.session_state.scenes_loaded_for = None
+                            st.success("Scene permanently deleted!")
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Delete error: {e}")
+
+                    else:
+                        st.session_state.scenes.pop(i)
+                        st.rerun()
 
     # AUDIO
-
     with tab4:
 
         st.markdown("### 🎙️ Audio & Dialogue Studio")
