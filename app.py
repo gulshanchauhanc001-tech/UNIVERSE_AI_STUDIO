@@ -117,6 +117,55 @@ def set_logged_in_user(user, method):
 
 
 # -----------------------------------------
+# AI BRAIN - LONG TERM MEMORY
+# -----------------------------------------
+
+def save_ai_memory(project_name, memory_type, title, content):
+    user_id = st.session_state.get("user_id")
+
+    if not user_id:
+        return False, "User login required."
+
+    try:
+        response = get_supabase().table("ai_memory").insert({
+            "user_id": user_id,
+            "project_name": project_name,
+            "memory_type": memory_type,
+            "title": title,
+            "content": content
+        }).execute()
+
+        return True, "Memory saved successfully."
+
+    except Exception as e:
+        return False, str(e)
+
+
+def load_ai_memories(project_name):
+    user_id = st.session_state.get("user_id")
+
+    if not user_id:
+        return []
+
+    try:
+        response = (
+            get_supabase()
+            .table("ai_memory")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("project_name", project_name)
+            .order("created_at", desc=True)
+            .execute()
+        )
+
+        return response.data or []
+
+    except Exception as e:
+        st.error(f"Memory loading error: {e}")
+        return []
+
+
+# -----------------------------------------
 # SESSION DATA
 # -----------------------------------------
 
