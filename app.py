@@ -22,16 +22,81 @@ st.set_page_config(
 # SUPABASE
 # -----------------------------------------
 
-@st.cache_resource
+# -----------------------------------------
+# PKCE STORAGE
+# -----------------------------------------
+
+class StreamlitSQLiteStorage(SyncSupportedStorage):
+
+    def __init__(self, namespace):
+        self.namespace = namespace
+        self.db_path = "/tmp/universe_ai_auth.sqlite3"
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS auth_storage (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            """)
+
+    def _key(self, key):
+        return f"{self.namespace}:{key}"
+
+    def get_item(self, key):
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT value FROM auth_storage WHERE key = ?",
+                (self._key(key),)
+            ).fetchone()
+
+        return row[0] if row else None
+
+    def set_item(self, key, value):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO auth_storage (key, value)
+                VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """, (self._key(key), value))
+
+    def remove_item(self, key):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "DELETE FROM auth_storage WHERE key = ?",
+                (self._key(key),)
+            )
+
+
+# -----------------------------------------
+# BROWSER SESSION ID
+# -----------------------------------------
+
+if "auth_sid" not in st.query_params:
+    st.query_params["auth_sid"] = py_secrets.token_urlsafe(24)
+    st.rerun()
+
+AUTH_NAMESPACE = st.query_params["auth_sid"]
+
+
+# -----------------------------------------
+# SUPABASE
+# -----------------------------------------
+
 def get_supabase():
     return create_client(
         st.secrets["supabase"]["url"],
-        st.secrets["supabase"]["anon_key"]
+        st.secrets["supabase"]["anon_key"],
+        options=ClientOptions(
+            flow_type="pkce",
+            storage=StreamlitSQLiteStorage(AUTH_NAMESPACE)
+        )
     )
 
 
 def redirect_url():
-    return st.secrets["supabase"]["redirect_url"]
+    base = st.secrets["supabase"]["redirect_url"].rstrip("/")
+    return f"{base}?auth_sid={AUTH_NAMESPACE}"
 
 
 def set_logged_in_user(user, method):
