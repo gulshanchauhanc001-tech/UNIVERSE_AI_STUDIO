@@ -349,6 +349,7 @@ def auth_screen():
         with google_tab:
 
             st.markdown("### Continue with Google")
+            st.write("Redirect URL:", redirect_url())
 
             if st.button(
                 "Continue with Google",
