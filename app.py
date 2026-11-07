@@ -1000,10 +1000,31 @@ elif page == "🌍 Location Library":
     st.markdown("""
     <div class="hero">
         <h1>🌍 Location Library</h1>
-        <p>Create and organize your cinematic environments.</p>
+        <p>Create and permanently save your cinematic environments.</p>
     </div>
     """, unsafe_allow_html=True)
 
+    current_project = (
+        st.session_state.get("project_name") or "My First Film"
+    )
+
+    # Load locations from Supabase
+    if st.session_state.get("locations_loaded_for") != current_project:
+
+        memories = load_ai_memories(current_project)
+
+        locations = []
+
+        for memory in memories:
+            if memory.get("memory_type") == "location":
+                location = dict(memory.get("content") or {})
+                location["_memory_id"] = memory.get("id")
+                locations.append(location)
+
+        st.session_state.locations = locations
+        st.session_state.locations_loaded_for = current_project
+
+    # Add new location
     with st.form("location_form"):
 
         location_name = st.text_input("Location Name")
@@ -1011,15 +1032,9 @@ elif page == "🌍 Location Library":
         location_type = st.selectbox(
             "Environment Type",
             [
-                "City",
-                "Village",
-                "Forest",
-                "Mountain",
-                "Desert",
-                "Space",
-                "Indoor",
-                "Fantasy World",
-                "Other"
+                "City", "Village", "Forest", "Mountain",
+                "Desert", "Space", "Indoor",
+                "Fantasy World", "Other"
             ]
         )
 
@@ -1030,7 +1045,7 @@ elif page == "🌍 Location Library":
 
         consistency = st.text_area(
             "Location Consistency Notes",
-            placeholder="Details that should remain the same across scenes."
+            placeholder="Details that must remain the same across scenes."
         )
 
         save_location = st.form_submit_button(
@@ -1045,34 +1060,65 @@ elif page == "🌍 Location Library":
 
         else:
 
-            st.session_state.locations.append({
-                "name": location_name,
+            location_data = {
+                "name": location_name.strip(),
                 "type": location_type,
                 "description": description,
                 "consistency": consistency
-            })
+            }
 
-            st.success("Location saved.")
-            st.rerun()
+            success, message = save_ai_memory(
+                current_project,
+                "location",
+                location_name.strip(),
+                location_data
+            )
+
+            if success:
+                st.session_state.locations_loaded_for = None
+                st.success("Location permanently saved!")
+                st.rerun()
+            else:
+                st.error(f"Save error: {message}")
 
     st.divider()
-    st.markdown("### Your Locations")
+    st.markdown("### Your Saved Locations")
 
     if not st.session_state.locations:
         st.info("Abhi koi location create nahi hui.")
 
     for i, location in enumerate(st.session_state.locations):
 
-        with st.expander(location["name"]):
+        with st.expander(location.get("name", "Location")):
 
-            st.write("**Type:**", location["type"])
-            st.write("**Description:**", location["description"])
-            st.write("**Consistency:**", location["consistency"])
+            st.write("**Type:**", location.get("type", ""))
+            st.write("**Description:**", location.get("description", ""))
+            st.write("**Consistency:**", location.get("consistency", ""))
 
-            if st.button("Delete Location", key=f"delete_location_{i}"):
+            if st.button(
+                "Delete Location",
+                key=f"delete_location_{i}"
+            ):
 
-                st.session_state.locations.pop(i)
-                st.rerun()
+                memory_id = location.get("_memory_id")
+
+                if memory_id:
+                    try:
+                        get_supabase().table("ai_memory").delete().eq(
+                            "id", memory_id
+                        ).eq(
+                            "user_id", st.session_state.user_id
+                        ).execute()
+
+                        st.session_state.locations_loaded_for = None
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Delete error: {e}")
+
+                else:
+                    st.session_state.locations.pop(i)
+                    st.rerun()
 
 
 # -----------------------------------------
