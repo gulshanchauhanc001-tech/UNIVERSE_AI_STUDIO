@@ -598,6 +598,26 @@ elif page == "🎥 Film Studio":
         key="project_name"
     )
 
+    # Load saved scenes from Supabase
+    current_project = (
+        st.session_state.get("project_name") or "My First Film"
+    )
+
+    if st.session_state.get("scenes_loaded_for") != current_project:
+
+        memories = load_ai_memories(current_project)
+
+        saved_scenes = []
+
+        for memory in memories:
+            if memory.get("memory_type") == "scene":
+                scene = dict(memory.get("content") or {})
+                scene["_memory_id"] = memory.get("id")
+                saved_scenes.append(scene)
+
+        st.session_state.scenes = saved_scenes
+        st.session_state.scenes_loaded_for = current_project
+    
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Text to Video",
         "Image to Video",
