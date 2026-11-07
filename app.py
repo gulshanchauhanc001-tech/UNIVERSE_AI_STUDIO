@@ -809,10 +809,27 @@ elif page == "🎥 Film Studio":
                         st.session_state.scenes.pop(i)
                         st.rerun()
 
+    
     # AUDIO
     with tab4:
 
         st.markdown("### 🎙️ Audio & Dialogue Studio")
+
+        # Load saved dialogues from Supabase
+        if st.session_state.get("dialogues_loaded_for") != current_project:
+
+            memories = load_ai_memories(current_project)
+
+            saved_dialogues = []
+
+            for memory in memories:
+                if memory.get("memory_type") == "dialogue":
+                    dialogue_item = dict(memory.get("content") or {})
+                    dialogue_item["_memory_id"] = memory.get("id")
+                    saved_dialogues.append(dialogue_item)
+
+            st.session_state.clips = saved_dialogues
+            st.session_state.dialogues_loaded_for = current_project
 
         character_names = [
             c["name"] for c in st.session_state.characters
@@ -851,25 +868,53 @@ elif page == "🎥 Film Studio":
             )
 
             audio_submit = st.form_submit_button(
-                "Prepare Dialogue"
+                "Save Dialogue"
             )
 
         if audio_submit:
 
-            if dialogue.strip():
-
-                st.session_state.clips.append({
-                    "type": "Dialogue",
-                    "speaker": speaker,
-                    "text": dialogue,
-                    "language": language,
-                    "emotion": emotion
-                })
-
-                st.success("Dialogue details saved in this session.")
+            if not dialogue.strip():
+                st.error("Dialogue likho.")
 
             else:
-                st.error("Dialogue likho.")
+
+                dialogue_data = {
+                    "type": "Dialogue",
+                    "speaker": speaker,
+                    "text": dialogue.strip(),
+                    "language": language,
+                    "emotion": emotion,
+                    "created": datetime.now().strftime("%Y-%m-%d %H:%M")
+                }
+
+                success, message = save_ai_memory(
+                    current_project,
+                    "dialogue",
+                    speaker,
+                    dialogue_data
+                )
+
+                if success:
+                    st.session_state.dialogues_loaded_for = None
+                    st.success("Dialogue permanently saved!")
+                    st.rerun()
+                else:
+                    st.error(f"Save error: {message}")
+
+        st.markdown("### 📚 Saved Dialogues")
+
+        if not st.session_state.clips:
+            st.info("Abhi koi dialogue save nahi hua.")
+
+        for i, clip in enumerate(st.session_state.clips):
+
+            with st.expander(
+                f"Dialogue {i+1}: {clip.get('speaker', 'Voiceover')}"
+            ):
+
+                st.write("**Dialogue:**", clip.get("text", ""))
+                st.write("**Language:**", clip.get("language", ""))
+                st.write("**Emotion:**", clip.get("emotion", ""))
 
         st.info(
             "AI voice generation aur lip-sync engine abhi connected nahi hai."
