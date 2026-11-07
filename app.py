@@ -387,27 +387,20 @@ def handle_google_callback():
     code = st.query_params.get("code")
 
     if code:
-
         try:
-
             result = get_supabase().auth.exchange_code_for_session({
                 "auth_code": code
             })
 
             set_logged_in_user(result.user, "Google")
+
             st.query_params.clear()
+            st.query_params["auth_sid"] = AUTH_NAMESPACE
+
             st.rerun()
 
         except Exception as e:
             st.error(f"Google login error: {e}")
-
-
-if not st.session_state.logged_in:
-    handle_google_callback()
-
-if not st.session_state.logged_in:
-    auth_screen()
-    st.stop()
 
 
 # -----------------------------------------
