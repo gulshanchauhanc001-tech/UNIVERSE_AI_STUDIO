@@ -77,10 +77,12 @@ cookie_manager = stx.CookieManager(key="universe_auth_cookies")
 
 AUTH_COOKIE_NAME = "universe_auth_sid"
 
-AUTH_NAMESPACE = cookie_manager.get(AUTH_COOKIE_NAME)
+query_namespace = st.query_params.get("auth_sid")
+cookie_namespace = cookie_manager.get(AUTH_COOKIE_NAME)
+
+AUTH_NAMESPACE = query_namespace or cookie_namespace
 
 if not AUTH_NAMESPACE:
-
     AUTH_NAMESPACE = py_secrets.token_urlsafe(32)
 
     cookie_manager.set(
@@ -91,6 +93,13 @@ if not AUTH_NAMESPACE:
 
     st.info("Login session prepare ho raha hai. Ek pal wait karo.")
     st.stop()
+
+if cookie_namespace != AUTH_NAMESPACE:
+    cookie_manager.set(
+        AUTH_COOKIE_NAME,
+        AUTH_NAMESPACE,
+        expires_at=datetime.now() + timedelta(days=30)
+    )
 
 
 # -----------------------------------------
