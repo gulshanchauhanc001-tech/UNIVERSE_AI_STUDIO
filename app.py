@@ -4,7 +4,7 @@ import json
 import sqlite3
 import secrets as py_secrets
 from datetime import datetime
-from gotrue import SyncSupportedStorage
+from supabase_auth import SyncSupportedStorage
 from supabase import create_client
 from supabase.client import ClientOptions
 
