@@ -172,6 +172,7 @@ def load_ai_memories(project_name):
 defaults = {
     "logged_in": False,
     "username": "",
+    "user_id": None,
     "profile_name": "",
     "auth_method": "",
     "otp_email": "",
