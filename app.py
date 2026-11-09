@@ -557,6 +557,7 @@ with st.sidebar:
             "🎥 Film Studio",
             "🧑 Character Library",
             "🌍 Location Library",
+            "🗂️ Asset Library",
             "📁 My Projects",
             "👤 My Profile",
             "⚙️ Settings"
