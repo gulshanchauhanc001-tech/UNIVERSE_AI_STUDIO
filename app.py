@@ -742,6 +742,8 @@ elif page == "🎥 Film Studio":
         "Film / Project Name",
         key="project_name"
     )
+    film_length = st.selectbox("Target Film Length", ["10 seconds", "18 seconds", "1 minute", "5 minutes", "10 minutes", "50 minutes"])
+    st.caption("Long films ko multiple short clips mein plan kiya jayega; ek 50-minute generation request nahi bheji jaati.")
 
     # Load saved scenes from Supabase
     current_project = (
@@ -776,6 +778,20 @@ elif page == "🎥 Film Studio":
     with tab1:
 
         st.markdown("### 🎬 Create a Cinematic Scene")
+        prompt_mode = st.radio("Prompt Mode", ["Manual", "Prompt Assistant"], horizontal=True)
+        saved_template_rows = [row for row in load_ai_memories(current_project) if row.get("memory_type") == "other" and (row.get("content") or {}).get("kind") == "template"]
+        builtin_templates = [
+            {"name": "Cinematic Establishing Shot", "prompt": "Wide establishing shot of [environment], layered depth, cinematic lighting, subtle atmosphere and controlled camera movement."},
+            {"name": "Anime Character Entrance", "prompt": "An expressive anime character enters the scene, detailed anime environment, readable composition, cinematic lighting and controlled motion."},
+            {"name": "Emotional Close-up", "prompt": "Intimate close-up of [character] showing [emotion], subtle eye movement, shallow depth of field and soft directional lighting."},
+            {"name": "Epic Action Scene", "prompt": "A clear action beat featuring [character] performing [action] in [location], dynamic tracking camera and dramatic cinematic lighting."}
+        ]
+        template_options = ["Start from blank"] + [item["name"] for item in builtin_templates] + [(row.get("content") or {}).get("name", row.get("title", "Custom Template")) for row in saved_template_rows]
+        selected_template = st.selectbox("Start with Template", template_options)
+        template_prompt = ""
+        if selected_template != "Start from blank":
+            all_templates = builtin_templates + [(row.get("content") or {}) for row in saved_template_rows]
+            template_prompt = next((item.get("prompt", "") for item in all_templates if item.get("name") == selected_template), "")
 
         with st.form("scene_form"):
 
@@ -787,6 +803,7 @@ elif page == "🎥 Film Studio":
             prompt = st.text_area(
                 "Describe Your Scene",
                 height=150,
+                value=template_prompt,
                 placeholder="Describe characters, action, environment, lighting and camera movement..."
             )
 
@@ -819,11 +836,14 @@ elif page == "🎥 Film Studio":
 
             duration = st.selectbox(
                 "Scene Duration",
-                ["5 seconds", "10 seconds", "15 seconds", "30 seconds"]
+                ["5 seconds", "10 seconds", "15 seconds", "18 seconds", "30 seconds"]
             )
 
+            lighting = st.selectbox("Lighting", ["Natural", "Golden Hour", "Soft Studio", "Low Key", "Neon", "Moonlight", "High Contrast", "Volumetric"])
+            mood = st.selectbox("Mood", ["Hopeful", "Dramatic", "Mysterious", "Joyful", "Tense", "Melancholic", "Epic", "Peaceful"])
+            aspect_ratio = st.selectbox("Aspect Ratio", ["16:9", "9:16", "1:1", "2.39:1"])
             create_scene = st.form_submit_button(
-                "Add Scene to Storyboard",
+                "Build Prompt" if prompt_mode == "Prompt Assistant" else "Add Scene to Storyboard",
                 use_container_width=True
             )
 
@@ -833,6 +853,10 @@ elif page == "🎥 Film Studio":
                 st.error("Scene description likho.")
 
             else:
+                prompt = prompt.strip() + f" Visual style: {style}. Camera: {camera}. Lighting: {lighting}. Mood: {mood}. Aspect ratio: {aspect_ratio}. Maintain visual continuity."
+                if prompt_mode == "Prompt Assistant":
+                    st.success("Prompt structured ho gaya. Ise apne video AI tool mein use kar sakte ho.")
+                    st.code(prompt)
 
                 scene_data = {
                     "name": scene_name.strip() or f"Scene {len(st.session_state.scenes)+1}",
@@ -840,6 +864,10 @@ elif page == "🎥 Film Studio":
                     "style": style,
                     "camera": camera,
                     "duration": duration,
+                    "film_length": film_length,
+                    "lighting": lighting,
+                    "mood": mood,
+                    "aspect_ratio": aspect_ratio,
                     "created": datetime.now().strftime("%Y-%m-%d %H:%M")
                 }
 
