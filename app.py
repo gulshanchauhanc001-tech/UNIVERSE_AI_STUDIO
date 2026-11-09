@@ -480,31 +480,6 @@ def handle_google_callback():
 
 
 # -----------------------------------------
-# GOOGLE CALLBACK
-# -----------------------------------------
-
-def handle_google_callback():
-
-    code = st.query_params.get("code")
-
-    if code:
-        try:
-            result = get_supabase().auth.exchange_code_for_session({
-                "auth_code": code
-            })
-
-            set_logged_in_user(result.user, "Google")
-
-            st.query_params.clear()
-            st.query_params["auth_sid"] = AUTH_NAMESPACE
-
-            st.rerun()
-
-        except Exception as e:
-            st.error(f"Google login error: {e}")
-
-
-# -----------------------------------------
 # RESTORE LOGIN SESSION
 # -----------------------------------------
 
@@ -555,6 +530,7 @@ with st.sidebar:
         [
             "🏠 Overview",
             "🎥 Film Studio",
+            "🧩 My Templates",
             "🧑 Character Library",
             "🌍 Location Library",
             "🗂️ Asset Library",
@@ -1585,10 +1561,17 @@ elif page == "⚙️ Settings":
     st.write("Characters:", len(st.session_state.characters))
     st.write("Locations:", len(st.session_state.locations))
 
+    st.success(
+        "Supabase ai_memory database connected hai. Scenes, characters, "
+        "locations aur dialogues account ke saath permanently save hote hain."
+    )
     st.info(
-        "Scene, character, location and project data currently "
-        "remain in the active Streamlit session. Permanent database "
-        "storage is not connected yet."
+        "Asset Library ke liye studio_assets table, private studio-assets bucket "
+        "aur user-folder RLS policies configured hone chahiye."
+    )
+    st.info(
+        "AI video generation, voice synthesis, lip-sync aur final rendering "
+        "provider abhi connected nahi hai; ye workspace prompts aur production data manage karta hai."
     )
 
     st.markdown("### About")
