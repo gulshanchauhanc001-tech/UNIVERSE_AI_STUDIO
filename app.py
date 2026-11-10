@@ -775,122 +775,136 @@ elif page == "🎥 Film Studio":
     ])
 
     # TEXT TO VIDEO
-
     with tab1:
-
-        st.markdown("### 🎬 Create a Cinematic Scene")
-        prompt_mode = st.radio("Prompt Mode", ["Manual", "Prompt Assistant"], horizontal=True)
-        saved_template_rows = [row for row in load_ai_memories(current_project) if row.get("memory_type") == "other" and (row.get("content") or {}).get("kind") == "template"]
-        builtin_templates = [
-            {"name": "Cinematic Establishing Shot", "prompt": "Wide establishing shot of [environment], layered depth, cinematic lighting, subtle atmosphere and controlled camera movement."},
-            {"name": "Anime Character Entrance", "prompt": "An expressive anime character enters the scene, detailed anime environment, readable composition, cinematic lighting and controlled motion."},
-            {"name": "Emotional Close-up", "prompt": "Intimate close-up of [character] showing [emotion], subtle eye movement, shallow depth of field and soft directional lighting."},
-            {"name": "Epic Action Scene", "prompt": "A clear action beat featuring [character] performing [action] in [location], dynamic tracking camera and dramatic cinematic lighting."}
+        st.markdown("### Create a Cinematic Scene")
+        saved_template_rows = [
+            row for row in load_ai_memories(current_project)
+            if row.get("memory_type") == "other"
+            and (row.get("content") or {}).get("kind") == "template"
         ]
-        template_options = ["Start from blank"] + [item["name"] for item in builtin_templates] + [(row.get("content") or {}).get("name", row.get("title", "Custom Template")) for row in saved_template_rows]
-        selected_template = st.selectbox("Start with Template", template_options)
-        template_prompt = ""
+        builtin_templates = [
+            {"name": "YouTube Shorts Hook", "category": "YouTube Shorts", "prompt": "Create a high-retention vertical short. Open with a surprising visual hook in the first 2 seconds, build curiosity with fast clear story beats, and finish with a memorable payoff. Topic: [topic]."},
+            {"name": "Horror Story Twist", "category": "Horror", "prompt": "A suspenseful short horror story set in [location]. Build tension through atmosphere, subtle sound cues and cinematic close-ups, then reveal one unexpected final twist."},
+            {"name": "Anime Cinematic Scene", "category": "Anime", "prompt": "Create a beautifully composed anime scene featuring [character] in [environment]. Expressive acting, detailed backgrounds, cinematic lighting, fluid motion and consistent character design."},
+            {"name": "Emotional Storytime", "category": "Storytime", "prompt": "Tell an emotionally engaging story about [subject]. Start with a compelling question, show a clear emotional journey, use intimate close-ups and end with a meaningful takeaway."},
+            {"name": "Mini Vlog", "category": "Vlog", "prompt": "Create a polished mini vlog about [activity/place]. Use natural moments, establishing shots, smooth transitions, warm color grading and an authentic creator-style voiceover."},
+            {"name": "Fast Facts Explainer", "category": "Education", "prompt": "Explain [topic] in a visually engaging short. Use a strong opening fact, three clear visual examples, readable on-screen labels and a concise closing summary."},
+            {"name": "Comedy Skit", "category": "Comedy", "prompt": "Create a short comedy skit about [situation] with a clear setup, escalating reactions, expressive character acting, precise comedic timing and a punchline."},
+            {"name": "Motivational Cinematic", "category": "Motivation", "prompt": "Create an inspiring cinematic short about [goal]. Show struggle, effort and progress through powerful visuals, purposeful camera movement and an uplifting ending."},
+            {"name": "Gaming Cinematic", "category": "Gaming", "prompt": "Create a high-energy gaming cinematic around [game/moment], with dramatic reveals, dynamic camera framing, impactful cuts and sound-design cues."},
+            {"name": "Satisfying Seamless Loop", "category": "Satisfying", "prompt": "Create a visually satisfying sequence of [subject] with clean repeating motion, precise detail, smooth pacing and an ending that loops seamlessly into the opening."},
+            {"name": "Product Showcase", "category": "Commercial", "prompt": "Create a premium product showcase for [product]. Use elegant macro details, controlled studio lighting, smooth camera moves and clear feature-focused shots."},
+            {"name": "Documentary Moment", "category": "Documentary", "prompt": "Create a grounded documentary-style scene about [subject], with observational framing, natural light, authentic details and a calm informative narration."}
+        ]
+        all_templates = builtin_templates + [
+            (row.get("content") or {}) for row in saved_template_rows
+        ]
+        template_names = ["Start from blank"] + [item.get("name", "Saved Template") for item in all_templates]
+        selected_template = st.selectbox("Template", template_names, key="film_template_choice")
+        template_prompt = next(
+            (item.get("prompt", "") for item in all_templates if item.get("name") == selected_template),
+            ""
+        )
         if selected_template != "Start from blank":
-            all_templates = builtin_templates + [(row.get("content") or {}) for row in saved_template_rows]
-            template_prompt = next((item.get("prompt", "") for item in all_templates if item.get("name") == selected_template), "")
+            st.caption("Template loaded. Edit the prompt to make it your own.")
 
-        with st.form("scene_form"):
+        scene_name = st.text_input("Scene name", placeholder="Example: The hero enters the city", key="film_scene_name")
+        prompt = st.text_area(
+            "Describe your film",
+            height=145,
+            value=template_prompt,
+            placeholder="Write your story, characters, action, location and mood...",
+            key="film_scene_prompt"
+        )
 
-            scene_name = st.text_input(
-                "Scene Name",
-                placeholder="Example: Hero Entry"
-            )
+        # Compact settings drawer: each control has independent Auto / Manual / Custom mode.
+        setting_specs = [
+            ("Duration", ["5 seconds", "10 seconds", "15 seconds", "30 seconds", "60 seconds"]),
+            ("Quality", ["720p", "1080p", "2K", "4K"]),
+            ("Aspect Ratio", ["16:9", "9:16", "1:1", "2.39:1"]),
+            ("Visual Style", ["Cinematic Realism", "Anime", "3D Animation", "Fantasy", "Sci-Fi", "Horror", "Documentary"]),
+            ("Camera", ["Static Shot", "Slow Zoom In", "Slow Zoom Out", "Tracking Shot", "Pan Left", "Pan Right", "Drone Shot", "Handheld"]),
+            ("Voice & Emotion", ["Natural Hindi", "Natural English", "Emotional", "Deep Narration", "Energetic", "Whispering"]),
+            ("Music & Sound", ["Cinematic", "Orchestral", "Ambient", "Action", "Comedy", "No Music"]),
+            ("Subtitles", ["Off", "Hindi", "English", "Hinglish", "Auto"])
+        ]
+        default_modes = st.session_state.get("film_setting_modes", {})
+        default_values = st.session_state.get("film_setting_values", {})
+        custom_values = st.session_state.get("film_setting_custom", {})
+        setting_modes = dict(default_modes)
+        setting_values = dict(default_values)
+        setting_custom = dict(custom_values)
 
-            prompt = st.text_area(
-                "Describe Your Scene",
-                height=150,
-                value=template_prompt,
-                placeholder="Describe characters, action, environment, lighting and camera movement..."
-            )
+        with st.popover("⚙️ Generation Settings", use_container_width=True):
+            st.caption("Choose Auto, Manual or Custom separately for each setting.")
+            for setting_name, choices in setting_specs:
+                st.markdown("**" + setting_name + "**")
+                mode = st.selectbox(
+                    setting_name + " mode",
+                    ["Auto", "Manual", "Custom"],
+                    index=["Auto", "Manual", "Custom"].index(setting_modes.get(setting_name, "Auto")),
+                    key="film_mode_" + re.sub(r"[^a-z0-9]+", "_", setting_name.lower()),
+                    label_visibility="collapsed"
+                )
+                setting_modes[setting_name] = mode
+                if mode == "Manual":
+                    setting_values[setting_name] = st.selectbox(
+                        "Choose " + setting_name,
+                        choices,
+                        index=choices.index(setting_values[setting_name]) if setting_values.get(setting_name) in choices else 0,
+                        key="film_manual_" + re.sub(r"[^a-z0-9]+", "_", setting_name.lower())
+                    )
+                elif mode == "Custom":
+                    setting_custom[setting_name] = st.text_area(
+                        "Write your " + setting_name + " instructions",
+                        value=setting_custom.get(setting_name, ""),
+                        height=75,
+                        placeholder="Write exactly what you want for " + setting_name.lower() + "...",
+                        key="film_custom_" + re.sub(r"[^a-z0-9]+", "_", setting_name.lower())
+                    )
+                st.divider()
 
-            style = st.selectbox(
-                "Visual Style",
-                [
-                    "Cinematic Realism",
-                    "Anime",
-                    "3D Animation",
-                    "Fantasy",
-                    "Sci-Fi",
-                    "Horror",
-                    "Documentary"
-                ]
-            )
+        st.session_state.film_setting_modes = setting_modes
+        st.session_state.film_setting_values = setting_values
+        st.session_state.film_setting_custom = setting_custom
 
-            camera = st.selectbox(
-                "Camera Movement",
-                [
-                    "Static Shot",
-                    "Slow Zoom In",
-                    "Slow Zoom Out",
-                    "Tracking Shot",
-                    "Pan Left",
-                    "Pan Right",
-                    "Drone Shot",
-                    "Handheld"
-                ]
-            )
-
-            duration = st.selectbox(
-                "Scene Duration",
-                ["5 seconds", "10 seconds", "15 seconds", "18 seconds", "30 seconds"]
-            )
-
-            lighting = st.selectbox("Lighting", ["Natural", "Golden Hour", "Soft Studio", "Low Key", "Neon", "Moonlight", "High Contrast", "Volumetric"])
-            mood = st.selectbox("Mood", ["Hopeful", "Dramatic", "Mysterious", "Joyful", "Tense", "Melancholic", "Epic", "Peaceful"])
-            aspect_ratio = st.selectbox("Aspect Ratio", ["16:9", "9:16", "1:1", "2.39:1"])
-            create_scene = st.form_submit_button(
-                "Build Prompt" if prompt_mode == "Prompt Assistant" else "Add Scene to Storyboard",
-                use_container_width=True
-            )
-
-        if create_scene:
-
+        prompt_mode = st.radio("Prompt handling", ["Keep my wording", "Structure prompt"], horizontal=True, key="film_prompt_handling")
+        if st.button("＋ Add Scene to Storyboard", use_container_width=True, type="primary", key="add_film_scene"):
             if not prompt.strip():
-                st.error("Scene description likho.")
-
+                st.error("Pehle apni story ya scene description likho.")
             else:
-                prompt = prompt.strip() + f" Visual style: {style}. Camera: {camera}. Lighting: {lighting}. Mood: {mood}. Aspect ratio: {aspect_ratio}. Maintain visual continuity."
-                if prompt_mode == "Prompt Assistant":
-                    st.success("Prompt structured ho gaya. Ise apne video AI tool mein use kar sakte ho.")
-                    st.code(prompt)
-
+                setting_instructions = []
+                for setting_name, choices in setting_specs:
+                    mode = setting_modes.get(setting_name, "Auto")
+                    if mode == "Manual":
+                        setting_instructions.append(setting_name + ": " + setting_values.get(setting_name, choices[0]))
+                    elif mode == "Custom" and setting_custom.get(setting_name, "").strip():
+                        setting_instructions.append(setting_name + " (custom): " + setting_custom[setting_name].strip())
+                final_prompt = prompt.strip()
+                if prompt_mode == "Structure prompt":
+                    final_prompt = "Create a coherent cinematic scene. Preserve the user's story and intent. " + final_prompt
+                if setting_instructions:
+                    final_prompt += "\n\nProduction directions: " + "; ".join(setting_instructions)
                 scene_data = {
                     "name": scene_name.strip() or f"Scene {len(st.session_state.scenes)+1}",
-                    "prompt": prompt,
-                    "style": style,
-                    "camera": camera,
-                    "duration": duration,
+                    "prompt": final_prompt,
+                    "settings": {
+                        "modes": setting_modes,
+                        "manual": setting_values,
+                        "custom": setting_custom
+                    },
                     "film_length": film_length,
-                    "lighting": lighting,
-                    "mood": mood,
-                    "aspect_ratio": aspect_ratio,
                     "created": datetime.now().strftime("%Y-%m-%d %H:%M")
                 }
-
-                success, message = save_ai_memory(
-                    current_project,
-                    "scene",
-                    scene_data["name"],
-                    scene_data
-                )
-
+                success, message = save_ai_memory(current_project, "scene", scene_data["name"], scene_data)
                 if success:
                     st.session_state.scenes_loaded_for = None
-                    st.success("Scene permanently saved!")
+                    st.success("Scene permanently saved to your storyboard.")
                     st.rerun()
                 else:
                     st.error(f"Save error: {message}")
 
-        st.info(
-            "Video generation engine abhi connect nahi hai. "
-            "Yahan scene prompt aur production details save ki ja sakti hain."
-        )
-
+        st.info("Prompt aur production settings save hote hain. Actual video generation tabhi chalegi jab video provider connect hoga.")
     # IMAGE TO VIDEO
 
     with tab2:
@@ -1124,54 +1138,103 @@ elif page == "🎥 Film Studio":
 # -----------------------------------------
 
 elif page == "🧩 My Templates":
-
     st.markdown("""
-    <div class="hero"><h1>🧩 My Templates</h1><p>Reusable prompts for your filmmaking workflow.</p></div>
+    <div class="hero">
+      <h1>🎞️ Template Library</h1>
+      <p>Explore creator-ready formats or build a reusable style of your own.</p>
+    </div>
     """, unsafe_allow_html=True)
+
+    builtin_templates = [
+        {"name": "YouTube Shorts Hook", "category": "YouTube Shorts", "tag": "High-retention", "prompt": "Create a high-retention vertical short. Open with a surprising visual hook in the first 2 seconds, build curiosity with fast clear story beats, and finish with a memorable payoff. Topic: [topic]."},
+        {"name": "Horror Story Twist", "category": "Horror", "tag": "Story format", "prompt": "A suspenseful short horror story set in [location]. Build tension through atmosphere, subtle sound cues and cinematic close-ups, then reveal one unexpected final twist."},
+        {"name": "Anime Cinematic Scene", "category": "Anime", "tag": "Animation", "prompt": "Create a beautifully composed anime scene featuring [character] in [environment]. Expressive acting, detailed backgrounds, cinematic lighting, fluid motion and consistent character design."},
+        {"name": "Emotional Storytime", "category": "Storytime", "tag": "Narrative", "prompt": "Tell an emotionally engaging story about [subject]. Start with a compelling question, show a clear emotional journey, use intimate close-ups and end with a meaningful takeaway."},
+        {"name": "Mini Vlog", "category": "Vlog", "tag": "Creator format", "prompt": "Create a polished mini vlog about [activity/place]. Use natural moments, establishing shots, smooth transitions, warm color grading and an authentic creator-style voiceover."},
+        {"name": "Fast Facts Explainer", "category": "Education", "tag": "Explainer", "prompt": "Explain [topic] in a visually engaging short. Use a strong opening fact, three clear visual examples, readable on-screen labels and a concise closing summary."},
+        {"name": "Comedy Skit", "category": "Comedy", "tag": "Entertainment", "prompt": "Create a short comedy skit about [situation] with a clear setup, escalating reactions, expressive character acting, precise comedic timing and a punchline."},
+        {"name": "Motivational Cinematic", "category": "Motivation", "tag": "Voiceover", "prompt": "Create an inspiring cinematic short about [goal]. Show struggle, effort and progress through powerful visuals, purposeful camera movement and an uplifting ending."},
+        {"name": "Gaming Cinematic", "category": "Gaming", "tag": "Gaming", "prompt": "Create a high-energy gaming cinematic around [game/moment], with dramatic reveals, dynamic camera framing, impactful cuts and sound-design cues."},
+        {"name": "Satisfying Seamless Loop", "category": "Satisfying", "tag": "Loop", "prompt": "Create a visually satisfying sequence of [subject] with clean repeating motion, precise detail, smooth pacing and an ending that loops seamlessly into the opening."},
+        {"name": "Product Showcase", "category": "Commercial", "tag": "Brand film", "prompt": "Create a premium product showcase for [product]. Use elegant macro details, controlled studio lighting, smooth camera moves and clear feature-focused shots."},
+        {"name": "Documentary Moment", "category": "Documentary", "tag": "Cinematic", "prompt": "Create a grounded documentary-style scene about [subject], with observational framing, natural light, authentic details and a calm informative narration."}
+    ]
+    st.caption("Curated YouTube-friendly formats. These are reusable creative formats, not a live ranking of today's trending videos.")
+    category_options = ["All"] + sorted({item["category"] for item in builtin_templates})
+    selected_category = st.selectbox("Explore by category", category_options)
+    visible_templates = [item for item in builtin_templates if selected_category == "All" or item["category"] == selected_category]
+    template_cols = st.columns(3)
+    for index, item in enumerate(visible_templates):
+        with template_cols[index % 3]:
+            with st.container(border=True):
+                st.markdown("**" + item["name"] + "**")
+                st.caption(item["category"] + " · " + item["tag"])
+                st.write(item["prompt"])
+                if st.button("Use template", key="use_builtin_" + str(index) + "_" + re.sub(r"[^a-z0-9]+", "_", item["name"].lower()), use_container_width=True):
+                    st.session_state["film_template_choice"] = item["name"]
+                    st.session_state["film_scene_prompt"] = item["prompt"]
+                    st.session_state["main_navigation"] = "🎥 Film Studio"
+                    st.rerun()
+
+    st.divider()
+    st.markdown("### ✨ Create My Own Template")
+    st.caption("Save your own prompt and creative directions so you can reuse them in any project.")
     with st.form("custom_template_form"):
-        template_name = st.text_input("Template Name")
-        template_category = st.selectbox("Category", ["Cinematic", "Anime", "Action", "Drama", "Fantasy", "Horror", "Commercial", "Other"])
-        template_prompt = st.text_area("Prompt Template", height=150)
-        save_template = st.form_submit_button("Save Template", use_container_width=True)
+        template_name = st.text_input("Template name", placeholder="Example: My Anime Shorts Style")
+        template_category = st.selectbox("Category", ["YouTube Shorts", "Anime", "Cinematic", "Action", "Drama", "Fantasy", "Horror", "Vlog", "Education", "Comedy", "Other"])
+        template_prompt = st.text_area("Your reusable prompt", height=130, placeholder="Write your story structure, visual direction and instructions...")
+        template_notes = st.text_area("Style notes (optional)", height=75, placeholder="Camera, voice, music, subtitles or other preferences...")
+        save_template = st.form_submit_button("Save My Template", use_container_width=True)
     if save_template:
         if not template_name.strip() or not template_prompt.strip():
             st.error("Template name aur prompt dono required hain.")
         else:
-            ok, message = save_ai_memory(st.session_state.project_name, "other", template_name.strip(), {"kind": "template", "name": template_name.strip(), "category": template_category, "prompt": template_prompt.strip()})
+            template_data = {
+                "kind": "template",
+                "name": template_name.strip(),
+                "category": template_category,
+                "prompt": template_prompt.strip(),
+                "notes": template_notes.strip()
+            }
+            ok, message = save_ai_memory(st.session_state.project_name, "other", template_name.strip(), template_data)
             if ok:
-                st.success("Template Supabase mein permanently save ho gaya.")
+                st.success("Your template has been saved to your account.")
                 st.rerun()
             else:
                 st.error(message)
-    st.markdown("### Built-in Templates")
-    builtin_templates = [
-        {"name": "Cinematic Establishing Shot", "category": "Cinematic", "prompt": "Wide establishing shot of [environment], layered depth, cinematic lighting, subtle atmosphere and controlled camera movement."},
-        {"name": "Anime Character Entrance", "category": "Anime", "prompt": "An expressive anime character enters the scene, detailed anime environment, readable composition, cinematic lighting and controlled motion."},
-        {"name": "Emotional Close-up", "category": "Drama", "prompt": "Intimate close-up of [character] showing [emotion], subtle eye movement, shallow depth of field and soft directional lighting."},
-        {"name": "Epic Action Scene", "category": "Action", "prompt": "A clear action beat featuring [character] performing [action] in [location], dynamic tracking camera and dramatic lighting."}
-    ]
-    for item in builtin_templates:
-        with st.expander(item["name"]):
-            st.caption(item["category"])
-            st.write(item["prompt"])
+
+    st.divider()
     st.markdown("### My Saved Templates")
-    custom_templates = [row for row in load_ai_memories(st.session_state.project_name) if row.get("memory_type") == "other" and (row.get("content") or {}).get("kind") == "template"]
+    custom_templates = [
+        row for row in load_ai_memories(st.session_state.project_name)
+        if row.get("memory_type") == "other"
+        and (row.get("content") or {}).get("kind") == "template"
+    ]
     if not custom_templates:
-        st.info("Abhi koi custom template save nahi hai.")
+        st.info("Your personal templates will appear here after you save one.")
     for row in custom_templates:
         data = row.get("content") or {}
         with st.expander(data.get("name") or row.get("title", "Template")):
             st.caption(data.get("category", "Other"))
             st.write(data.get("prompt", ""))
-            if st.button("Delete Template", key=f"delete_template_{row.get('id')}"):
-                try:
-                    get_supabase().table("ai_memory").delete().eq("id", row.get("id")).eq("user_id", st.session_state.user_id).execute()
-                    st.success("Template deleted.")
+            if data.get("notes"):
+                st.caption("Style notes: " + data["notes"])
+            use_col, delete_col = st.columns(2)
+            with use_col:
+                if st.button("Use in Film Studio", key="use_saved_" + str(row.get("id")), use_container_width=True):
+                    st.session_state["film_template_choice"] = data.get("name", "")
+                    st.session_state["film_scene_prompt"] = data.get("prompt", "")
+                    st.session_state["main_navigation"] = "🎥 Film Studio"
                     st.rerun()
-                except Exception as exc:
-                    st.error(f"Delete error: {exc}")
+            with delete_col:
+                if st.button("Delete", key="delete_template_" + str(row.get("id")), use_container_width=True):
+                    try:
+                        get_supabase().table("ai_memory").delete().eq("id", row.get("id")).eq("user_id", st.session_state.user_id).execute()
+                        st.success("Template deleted.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Delete error: {exc}")
 
-# -----------------------------------------
 # CHARACTER LIBRARY
 # -----------------------------------------
 
