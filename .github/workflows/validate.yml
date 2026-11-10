@@ -21,7 +21,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Compile application
-        run: python -m compileall -q app.py
+        run: python -m compileall -q app.py local_ai.py
       - name: Import runtime dependencies
         run: |
-          python -c "import streamlit, supabase, supabase_auth, extra_streamlit_components"
+          python -c "import streamlit, supabase, supabase_auth, extra_streamlit_components, pyttsx3"
