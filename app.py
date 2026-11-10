@@ -805,6 +805,11 @@ elif page == "🎥 Film Studio":
             (item.get("prompt", "") for item in all_templates if item.get("name") == selected_template),
             ""
         )
+        previous_template = st.session_state.get("_last_loaded_film_template", selected_template)
+        if selected_template != previous_template:
+            # Update the prompt before the text-area widget is created so template switching works.
+            st.session_state["film_scene_prompt"] = template_prompt
+            st.session_state["_last_loaded_film_template"] = selected_template
         if selected_template != "Start from blank":
             st.caption("Template loaded. Edit the prompt to make it your own.")
 
