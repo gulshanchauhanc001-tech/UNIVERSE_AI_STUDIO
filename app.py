@@ -969,10 +969,25 @@ elif page == "🎥 Film Studio":
                 expanded=True
             ):
 
-                st.write("**Prompt:**", scene["prompt"])
-                st.write("**Style:**", scene["style"])
-                st.write("**Camera:**", scene["camera"])
-                st.write("**Duration:**", scene["duration"])
+                st.write("**Prompt:**", scene.get("prompt", ""))
+                # Support both older saved scenes and the new per-setting format.
+                scene_settings = scene.get("settings") or {}
+                manual_settings = scene_settings.get("manual") or {}
+                custom_settings = scene_settings.get("custom") or {}
+                setting_modes_for_scene = scene_settings.get("modes") or {}
+                for setting_label in ["Duration", "Quality", "Aspect Ratio", "Visual Style", "Camera", "Voice & Emotion", "Music & Sound", "Subtitles"]:
+                    mode_for_scene = setting_modes_for_scene.get(setting_label, "Auto")
+                    if mode_for_scene == "Manual":
+                        display_value = manual_settings.get(setting_label, "Auto")
+                    elif mode_for_scene == "Custom":
+                        display_value = custom_settings.get(setting_label, "").strip() or "Custom (not specified)"
+                    else:
+                        display_value = "Auto"
+                    st.caption(f"{setting_label}: {display_value}")
+                # Legacy scene details remain visible for scenes saved before this update.
+                for legacy_key, legacy_label in [("style", "Style"), ("camera", "Camera"), ("duration", "Duration")]:
+                    if scene.get(legacy_key):
+                        st.write(f"**{legacy_label}:**", scene.get(legacy_key))
 
                 if st.button("Delete Scene", key=f"delete_scene_{i}"):
 
