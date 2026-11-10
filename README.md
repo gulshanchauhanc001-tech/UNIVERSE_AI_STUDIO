@@ -74,3 +74,32 @@ The SQL setup file creates these objects and enables per-user row/storage polici
 - Never put Supabase keys, OAuth client secrets, provider API keys or `secrets.toml` in Git.
 - Use the Supabase anon/public key only in the client app with correctly configured Row Level Security. Never use a service-role key in this app.
 - Configure Google OAuth credentials and callback URLs in Supabase Auth separately.
+
+
+## Run your own local AI (no hosted AI API)
+
+The Local AI Studio page uses a model running on your own computer through Ollama. Your prompts are sent to `127.0.0.1` on that computer, not to a paid hosted AI provider.
+
+### Windows setup
+
+1. Install Python 3.11+.
+2. Install Ollama from the official Ollama website and start it.
+3. Open Command Prompt and run:
+   ```bat
+   ollama pull qwen2.5:3b
+   ```
+   This is a compact starting model; larger models need more RAM/VRAM.
+4. Ensure the repository's existing Streamlit secrets are configured if you use its login, account memory and cloud asset library. The AI generation itself does not use Supabase or any hosted AI API.
+5. Double-click `run_local_windows.bat`. The app opens in your browser.
+6. In the sidebar choose **Local AI Studio**, press **Check local AI connection**, then select the downloaded model.
+
+### Local capabilities and honest limits
+
+- Script, story, screenplay, prompt and creator text generation: local Ollama model.
+- Offline voice: uses voices installed in Windows via `pyttsx3`; voice quality/language depends on installed Windows voices.
+- MP4 maker: joins uploaded still images with optional audio using FFmpeg. Install FFmpeg and add it to PATH first.
+- Full text-to-video animation, image-to-video motion, lip-sync, music generation and advanced timeline editing are not implemented yet. A local image workflow can be added through ComfyUI, but it needs a compatible GPU and downloaded models.
+
+### Important deployment note
+
+A Streamlit Cloud deployment cannot access Ollama installed on your personal PC through `127.0.0.1`. Run this app locally with the batch file to use your computer's local model. The existing Supabase login, saved memories and cloud asset storage remain separate cloud features; they are not the AI engine.
