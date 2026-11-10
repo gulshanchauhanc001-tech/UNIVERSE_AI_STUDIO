@@ -1,6 +1,7 @@
 
 import streamlit as st
 import json
+import re
 import sqlite3
 import secrets as py_secrets
 import extra_streamlit_components as stx
@@ -480,31 +481,6 @@ def handle_google_callback():
 
 
 # -----------------------------------------
-# GOOGLE CALLBACK
-# -----------------------------------------
-
-def handle_google_callback():
-
-    code = st.query_params.get("code")
-
-    if code:
-        try:
-            result = get_supabase().auth.exchange_code_for_session({
-                "auth_code": code
-            })
-
-            set_logged_in_user(result.user, "Google")
-
-            st.query_params.clear()
-            st.query_params["auth_sid"] = AUTH_NAMESPACE
-
-            st.rerun()
-
-        except Exception as e:
-            st.error(f"Google login error: {e}")
-
-
-# -----------------------------------------
 # RESTORE LOGIN SESSION
 # -----------------------------------------
 
@@ -555,6 +531,7 @@ with st.sidebar:
         [
             "🏠 Overview",
             "🎥 Film Studio",
+            "🧩 My Templates",
             "🧑 Character Library",
             "🌍 Location Library",
             "🗂️ Asset Library",
@@ -766,6 +743,8 @@ elif page == "🎥 Film Studio":
         "Film / Project Name",
         key="project_name"
     )
+    film_length = st.selectbox("Target Film Length", ["10 seconds", "18 seconds", "1 minute", "5 minutes", "10 minutes", "50 minutes"])
+    st.caption("Long films ko multiple short clips mein plan kiya jayega; ek 50-minute generation request nahi bheji jaati.")
 
     # Load saved scenes from Supabase
     current_project = (
@@ -800,6 +779,20 @@ elif page == "🎥 Film Studio":
     with tab1:
 
         st.markdown("### 🎬 Create a Cinematic Scene")
+        prompt_mode = st.radio("Prompt Mode", ["Manual", "Prompt Assistant"], horizontal=True)
+        saved_template_rows = [row for row in load_ai_memories(current_project) if row.get("memory_type") == "other" and (row.get("content") or {}).get("kind") == "template"]
+        builtin_templates = [
+            {"name": "Cinematic Establishing Shot", "prompt": "Wide establishing shot of [environment], layered depth, cinematic lighting, subtle atmosphere and controlled camera movement."},
+            {"name": "Anime Character Entrance", "prompt": "An expressive anime character enters the scene, detailed anime environment, readable composition, cinematic lighting and controlled motion."},
+            {"name": "Emotional Close-up", "prompt": "Intimate close-up of [character] showing [emotion], subtle eye movement, shallow depth of field and soft directional lighting."},
+            {"name": "Epic Action Scene", "prompt": "A clear action beat featuring [character] performing [action] in [location], dynamic tracking camera and dramatic cinematic lighting."}
+        ]
+        template_options = ["Start from blank"] + [item["name"] for item in builtin_templates] + [(row.get("content") or {}).get("name", row.get("title", "Custom Template")) for row in saved_template_rows]
+        selected_template = st.selectbox("Start with Template", template_options)
+        template_prompt = ""
+        if selected_template != "Start from blank":
+            all_templates = builtin_templates + [(row.get("content") or {}) for row in saved_template_rows]
+            template_prompt = next((item.get("prompt", "") for item in all_templates if item.get("name") == selected_template), "")
 
         with st.form("scene_form"):
 
@@ -811,6 +804,7 @@ elif page == "🎥 Film Studio":
             prompt = st.text_area(
                 "Describe Your Scene",
                 height=150,
+                value=template_prompt,
                 placeholder="Describe characters, action, environment, lighting and camera movement..."
             )
 
@@ -843,11 +837,14 @@ elif page == "🎥 Film Studio":
 
             duration = st.selectbox(
                 "Scene Duration",
-                ["5 seconds", "10 seconds", "15 seconds", "30 seconds"]
+                ["5 seconds", "10 seconds", "15 seconds", "18 seconds", "30 seconds"]
             )
 
+            lighting = st.selectbox("Lighting", ["Natural", "Golden Hour", "Soft Studio", "Low Key", "Neon", "Moonlight", "High Contrast", "Volumetric"])
+            mood = st.selectbox("Mood", ["Hopeful", "Dramatic", "Mysterious", "Joyful", "Tense", "Melancholic", "Epic", "Peaceful"])
+            aspect_ratio = st.selectbox("Aspect Ratio", ["16:9", "9:16", "1:1", "2.39:1"])
             create_scene = st.form_submit_button(
-                "Add Scene to Storyboard",
+                "Build Prompt" if prompt_mode == "Prompt Assistant" else "Add Scene to Storyboard",
                 use_container_width=True
             )
 
@@ -857,6 +854,10 @@ elif page == "🎥 Film Studio":
                 st.error("Scene description likho.")
 
             else:
+                prompt = prompt.strip() + f" Visual style: {style}. Camera: {camera}. Lighting: {lighting}. Mood: {mood}. Aspect ratio: {aspect_ratio}. Maintain visual continuity."
+                if prompt_mode == "Prompt Assistant":
+                    st.success("Prompt structured ho gaya. Ise apne video AI tool mein use kar sakte ho.")
+                    st.code(prompt)
 
                 scene_data = {
                     "name": scene_name.strip() or f"Scene {len(st.session_state.scenes)+1}",
@@ -864,6 +865,10 @@ elif page == "🎥 Film Studio":
                     "style": style,
                     "camera": camera,
                     "duration": duration,
+                    "film_length": film_length,
+                    "lighting": lighting,
+                    "mood": mood,
+                    "aspect_ratio": aspect_ratio,
                     "created": datetime.now().strftime("%Y-%m-%d %H:%M")
                 }
 
@@ -1113,6 +1118,58 @@ elif page == "🎥 Film Studio":
             "Timeline editing, rendering and MP4 export engine abhi connected nahi hai."
         )
 
+
+# -----------------------------------------
+# MY TEMPLATES
+# -----------------------------------------
+
+elif page == "🧩 My Templates":
+
+    st.markdown("""
+    <div class="hero"><h1>🧩 My Templates</h1><p>Reusable prompts for your filmmaking workflow.</p></div>
+    """, unsafe_allow_html=True)
+    with st.form("custom_template_form"):
+        template_name = st.text_input("Template Name")
+        template_category = st.selectbox("Category", ["Cinematic", "Anime", "Action", "Drama", "Fantasy", "Horror", "Commercial", "Other"])
+        template_prompt = st.text_area("Prompt Template", height=150)
+        save_template = st.form_submit_button("Save Template", use_container_width=True)
+    if save_template:
+        if not template_name.strip() or not template_prompt.strip():
+            st.error("Template name aur prompt dono required hain.")
+        else:
+            ok, message = save_ai_memory(st.session_state.project_name, "other", template_name.strip(), {"kind": "template", "name": template_name.strip(), "category": template_category, "prompt": template_prompt.strip()})
+            if ok:
+                st.success("Template Supabase mein permanently save ho gaya.")
+                st.rerun()
+            else:
+                st.error(message)
+    st.markdown("### Built-in Templates")
+    builtin_templates = [
+        {"name": "Cinematic Establishing Shot", "category": "Cinematic", "prompt": "Wide establishing shot of [environment], layered depth, cinematic lighting, subtle atmosphere and controlled camera movement."},
+        {"name": "Anime Character Entrance", "category": "Anime", "prompt": "An expressive anime character enters the scene, detailed anime environment, readable composition, cinematic lighting and controlled motion."},
+        {"name": "Emotional Close-up", "category": "Drama", "prompt": "Intimate close-up of [character] showing [emotion], subtle eye movement, shallow depth of field and soft directional lighting."},
+        {"name": "Epic Action Scene", "category": "Action", "prompt": "A clear action beat featuring [character] performing [action] in [location], dynamic tracking camera and dramatic lighting."}
+    ]
+    for item in builtin_templates:
+        with st.expander(item["name"]):
+            st.caption(item["category"])
+            st.write(item["prompt"])
+    st.markdown("### My Saved Templates")
+    custom_templates = [row for row in load_ai_memories(st.session_state.project_name) if row.get("memory_type") == "other" and (row.get("content") or {}).get("kind") == "template"]
+    if not custom_templates:
+        st.info("Abhi koi custom template save nahi hai.")
+    for row in custom_templates:
+        data = row.get("content") or {}
+        with st.expander(data.get("name") or row.get("title", "Template")):
+            st.caption(data.get("category", "Other"))
+            st.write(data.get("prompt", ""))
+            if st.button("Delete Template", key=f"delete_template_{row.get('id')}"):
+                try:
+                    get_supabase().table("ai_memory").delete().eq("id", row.get("id")).eq("user_id", st.session_state.user_id).execute()
+                    st.success("Template deleted.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Delete error: {exc}")
 
 # -----------------------------------------
 # CHARACTER LIBRARY
@@ -1384,6 +1441,82 @@ elif page == "🌍 Location Library":
 
 
 # -----------------------------------------
+# ASSET LIBRARY
+# -----------------------------------------
+
+elif page == "🗂️ Asset Library":
+
+    st.markdown("""
+    <div class="hero"><h1>🗂️ Asset Library</h1><p>Private project reference images, videos, audio and files.</p></div>
+    """, unsafe_allow_html=True)
+    st.caption("Private Supabase bucket: studio-assets · Maximum 50 MB per file.")
+    uploads = st.file_uploader("Upload project assets", type=None, accept_multiple_files=True, key="studio_asset_uploader")
+    if uploads and st.button("Upload Selected Assets", use_container_width=True):
+        for uploaded in uploads:
+            content = uploaded.getvalue()
+            if len(content) > 50 * 1024 * 1024:
+                st.error(f"{uploaded.name}: 50 MB limit exceed.")
+                continue
+            safe_project = re.sub(r"[^A-Za-z0-9._-]+", "_", st.session_state.project_name.strip())[:70] or "project"
+            safe_file = re.sub(r"[^A-Za-z0-9._-]+", "_", uploaded.name).strip("._") or "upload"
+            path = f"{st.session_state.user_id}/{safe_project}/{py_secrets.token_hex(6)}_{safe_file}"
+            mime = uploaded.type or "application/octet-stream"
+            kind = "image" if mime.startswith("image/") else "video" if mime.startswith("video/") else "audio" if mime.startswith("audio/") else "other"
+            try:
+                get_supabase().storage.from_("studio-assets").upload(path, content, {"content-type": mime, "upsert": "false"})
+            except Exception as exc:
+                st.error(f"{uploaded.name}: upload failed: {exc}")
+                continue
+            try:
+                get_supabase().table("studio_assets").insert({"user_id": st.session_state.user_id, "project_name": st.session_state.project_name, "bucket_id": "studio-assets", "file_path": path, "file_name": uploaded.name, "file_type": kind, "mime_type": mime, "size_bytes": len(content)}).execute()
+                st.success(f"{uploaded.name}: upload complete.")
+            except Exception as exc:
+                try:
+                    get_supabase().storage.from_("studio-assets").remove([path])
+                except Exception:
+                    pass
+                st.error(f"{uploaded.name}: metadata save failed; rollback attempted: {exc}")
+        st.rerun()
+    st.markdown("### Saved Assets")
+    try:
+        response = get_supabase().table("studio_assets").select("*").eq("user_id", st.session_state.user_id).eq("project_name", st.session_state.project_name).order("created_at", desc=True).execute()
+        assets = response.data or []
+    except Exception as exc:
+        assets = []
+        st.error(f"Asset metadata load error: {exc}")
+    search_asset = st.text_input("Search assets", placeholder="File name...")
+    type_asset = st.selectbox("Filter type", ["All", "image", "video", "audio", "other"])
+    assets = [item for item in assets if search_asset.lower() in (item.get("file_name") or "").lower() and (type_asset == "All" or item.get("file_type") == type_asset)]
+    for asset in assets:
+        with st.expander(f"{asset.get('file_name', 'Asset')} · {asset.get('file_type', 'other')}"):
+            st.caption(f"{round((asset.get('size_bytes') or 0) / 1024, 1)} KB · {asset.get('created_at', '')}")
+            try:
+                signed_response = get_supabase().storage.from_(asset.get("bucket_id") or "studio-assets").create_signed_url(asset.get("file_path"), 3600)
+                signed = None
+                if isinstance(signed_response, dict):
+                    signed = signed_response.get("signedURL") or signed_response.get("signedUrl") or signed_response.get("signed_url")
+                if signed and asset.get("file_type") == "image":
+                    st.image(signed, use_container_width=True)
+                elif signed and asset.get("file_type") == "video":
+                    st.video(signed)
+                elif signed and asset.get("file_type") == "audio":
+                    st.audio(signed)
+                elif signed:
+                    st.link_button("Open temporary private file link", signed)
+                else:
+                    st.warning("Signed preview URL create nahi hua.")
+            except Exception as exc:
+                st.warning(f"Preview unavailable: {exc}")
+            if st.button("Delete Asset", key=f"delete_asset_{asset.get('id')}"):
+                try:
+                    get_supabase().storage.from_(asset.get("bucket_id") or "studio-assets").remove([asset.get("file_path")])
+                    get_supabase().table("studio_assets").delete().eq("id", asset.get("id")).eq("user_id", st.session_state.user_id).execute()
+                    st.success("Storage file aur metadata delete ho gaye.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Delete incomplete: {exc}")
+
+# -----------------------------------------
 # MY PROJECTS
 # -----------------------------------------
 
@@ -1585,10 +1718,17 @@ elif page == "⚙️ Settings":
     st.write("Characters:", len(st.session_state.characters))
     st.write("Locations:", len(st.session_state.locations))
 
+    st.success(
+        "Supabase ai_memory database connected hai. Scenes, characters, "
+        "locations aur dialogues account ke saath permanently save hote hain."
+    )
     st.info(
-        "Scene, character, location and project data currently "
-        "remain in the active Streamlit session. Permanent database "
-        "storage is not connected yet."
+        "Asset Library ke liye studio_assets table, private studio-assets bucket "
+        "aur user-folder RLS policies configured hone chahiye."
+    )
+    st.info(
+        "AI video generation, voice synthesis, lip-sync aur final rendering "
+        "provider abhi connected nahi hai; ye workspace prompts aur production data manage karta hai."
     )
 
     st.markdown("### About")
