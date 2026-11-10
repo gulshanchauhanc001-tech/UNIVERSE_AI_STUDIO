@@ -4,15 +4,11 @@ import json
 import re
 import sqlite3
 import secrets as py_secrets
-import os
-import tempfile
-from pathlib import Path
 import extra_streamlit_components as stx
 from datetime import datetime, timedelta
 from supabase_auth import SyncSupportedStorage
 from supabase import create_client
 from supabase.client import ClientOptions
-from local_ai import ollama_status, ollama_generate, offline_speak, ffmpeg_available, render_image_slideshow
 
 # -----------------------------------------
 # APP CONFIG
@@ -535,7 +531,6 @@ with st.sidebar:
         [
             "🏠 Overview",
             "🎥 Film Studio",
-            "🧠 Local AI Studio",
             "🧩 My Templates",
             "🧑 Character Library",
             "🌍 Location Library",
@@ -1161,85 +1156,6 @@ elif page == "🎥 Film Studio":
 # -----------------------------------------
 # MY TEMPLATES
 # -----------------------------------------
-
-
-elif page == "🧠 Local AI Studio":
-    st.markdown('<div class="hero"><h1>🧠 Your Local AI Studio</h1><p>Your own AI runs on your computer. No paid AI API keys.</p></div>', unsafe_allow_html=True)
-    st.info("Ollama aur ek AI model is computer par install/run hona zaroori hai. Cloud AI API use nahi hoti.")
-    ollama_url = st.text_input("Local Ollama address", "http://127.0.0.1:11434", key="local_ollama_url")
-    if st.button("Check local AI connection"):
-        status = ollama_status(ollama_url)
-        st.session_state.local_models = status["models"]
-        if status["connected"]:
-            st.success("Local AI connected.")
-        else:
-            st.error("Ollama not running or not installed.")
-            st.caption(status["error"])
-    models = st.session_state.get("local_models", [])
-    model = st.selectbox("Installed local model", models) if models else st.text_input("Model name", "qwen2.5:3b")
-    t1, t2, t3 = st.tabs(["✍️ Script AI", "🎙️ Offline Voice", "🎞️ MP4 Maker"])
-    with t1:
-        task = st.selectbox("Create", ["YouTube video script", "Anime story", "Scene-by-scene screenplay", "Hindi voice-over", "Shorts/Reels script", "Image prompts", "Character design", "Title, description and tags"])
-        language = st.selectbox("Language", ["Hindi", "Hinglish", "English"])
-        style = st.text_input("Style / genre", placeholder="Anime, horror, cinematic...")
-        idea = st.text_area("Your idea", height=140)
-        if st.button("✨ Generate with my AI", type="primary"):
-            if not idea.strip():
-                st.warning("Pehle idea likho.")
-            else:
-                prompt = f"Create {task} in {language}. Style: {style}. Make it creator-ready. For screenplay include scene headings, visuals, camera, dialogue, voiceover, SFX and music cues. Maintain character consistency.\n\n{idea}"
-                try:
-                    with st.spinner("Local model is working..."):
-                        st.session_state.local_result = ollama_generate(prompt, model, ollama_url)
-                except Exception as exc:
-                    st.error(str(exc))
-        if st.session_state.get("local_result"):
-            st.text_area("Generated result", st.session_state.local_result, height=350)
-            st.download_button("Download script", st.session_state.local_result, "universe_script.txt")
-    with t2:
-        dialogue = st.text_area("Dialogue / voice-over", key="offline_dialogue")
-        rate = st.slider("Speaking speed", 100, 230, 165)
-        if st.button("Create offline voice"):
-            try:
-                path = os.path.join(tempfile.gettempdir(), "universe_voice.wav")
-                offline_speak(dialogue, path, rate)
-                with open(path, "rb") as fh:
-                    audio = fh.read()
-                st.audio(audio)
-                st.download_button("Download WAV", audio, "universe_voice.wav", mime="audio/wav")
-            except Exception as exc:
-                st.error(str(exc))
-    with t3:
-        st.caption("Offline slideshow MP4 maker. This is not text-to-video or AI animation.")
-        uploads = st.file_uploader("Upload scene images in order", type=["png","jpg","jpeg","webp"], accept_multiple_files=True)
-        seconds = st.slider("Seconds per image", 1, 12, 4)
-        audio_upload = st.file_uploader("Optional voice track", type=["wav","mp3"])
-        if st.button("Render MP4"):
-            if not uploads:
-                st.warning("Upload at least one image.")
-            elif not ffmpeg_available():
-                st.error("FFmpeg is not installed on the machine running this app.")
-            else:
-                try:
-                    with tempfile.TemporaryDirectory() as folder:
-                        paths=[]
-                        for i, upload in enumerate(uploads):
-                            path=os.path.join(folder, f"scene_{i:03d}_{Path(upload.name).name}")
-                            Path(path).write_bytes(upload.getvalue())
-                            paths.append(path)
-                        audio_path=None
-                        if audio_upload:
-                            audio_path=os.path.join(folder, Path(audio_upload.name).name)
-                            Path(audio_path).write_bytes(audio_upload.getvalue())
-                        output=os.path.join(folder,"universe_film.mp4")
-                        with st.spinner("Rendering video..."):
-                            render_image_slideshow(paths, output, seconds, audio_path)
-                        video=Path(output).read_bytes()
-                    st.video(video)
-                    st.download_button("Download MP4", video, "universe_film.mp4", mime="video/mp4")
-                except Exception as exc:
-                    st.error(str(exc))
-    st.caption("AI image generation, full motion video and lip-sync are not yet connected. Local ComfyUI integration is a next build step.")
 
 
 elif page == "🧩 My Templates":
