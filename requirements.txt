@@ -1,3 +1,4 @@
-streamlit
-supabase
+streamlit>=1.40,<2
+supabase==2.34.1
+supabase-auth==2.34.1
 extra-streamlit-components
